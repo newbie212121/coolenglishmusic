@@ -1,9 +1,14 @@
+# amplify.yml
+
 version: 1
 frontend:
   phases:
     preBuild:
       commands:
         - npm ci --include=dev
+        # 👇 Add these two lines
+        - echo "STRIPE_SECRET_KEY=$STRIPE_SECRET_KEY" >> .env.production
+        - echo "STRIPE_COUPON_ID=$STRIPE_COUPON_ID" >> .env.production
     build:
       commands:
         - npm run build
