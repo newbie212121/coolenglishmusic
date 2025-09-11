@@ -2,10 +2,10 @@
 import { useState } from 'react';
 
 export default function PricingSection() {
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState('');
 
   const handleCheckout = async (priceId: string) => {
-    setLoading(true);
+    setLoading(priceId);
     try {
       const response = await fetch('/api/create-checkout-session', {
         method: 'POST',
@@ -20,13 +20,16 @@ export default function PricingSection() {
       }
 
       const { url } = await response.json();
-      window.location.href = url; // Redirect to Stripe
+      window.location.href = url;
     } catch (error) {
       console.error('Checkout error:', error);
       alert('Error: Could not redirect to payment page.');
-      setLoading(false);
+      setLoading('');
     }
   };
+  
+  const monthlyPriceId = 'price_1S6EhJEWbhWs9Y6ojPLRnaJ7'; // Your real monthly ID
+  const annualPriceId = 'price_1S6EiAEWbhWs9Y6oa0djiq82';   // Your real annual ID
 
   return (
     <section className="py-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-b from-black to-neutral-900">
@@ -58,11 +61,11 @@ export default function PricingSection() {
               <Feature>Priority Support</Feature>
             </ul>
             <button
-              onClick={() => handleCheckout('prod_T2JJm7mMUyAqXB')} // 👈 Replace with your Monthly Price ID
-              disabled={loading}
+              onClick={() => handleCheckout(monthlyPriceId)}
+              disabled={!!loading}
               className="mt-auto w-full text-center border border-neutral-700 text-neutral-200 hover:border-emerald-400 hover:bg-white/5 py-3 rounded-full transition disabled:opacity-50"
             >
-              {loading ? 'Redirecting...' : 'Choose Monthly'}
+              {loading === monthlyPriceId ? 'Redirecting...' : 'Choose Monthly'}
             </button>
           </div>
 
@@ -88,12 +91,12 @@ export default function PricingSection() {
               <Feature>Downloadable Resources</Feature>
             </ul>
             <button
-              onClick={() => handleCheckout('prod_T2JKWau3raWyd5')} // 👈 Replace with your Annual Price ID
-              disabled={loading}
+              onClick={() => handleCheckout(annualPriceId)}
+              disabled={!!loading}
               className="mt-auto w-full text-center spotify-green spotify-green-hover text-black font-semibold py-3 rounded-full transition disabled:opacity-50"
               aria-label="Choose Annual plan"
             >
-              {loading ? 'Redirecting...' : '👑 Go Annual'}
+              {loading === annualPriceId ? 'Redirecting...' : '👑 Go Annual'}
             </button>
           </div>
         </div>
