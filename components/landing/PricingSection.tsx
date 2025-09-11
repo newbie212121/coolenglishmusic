@@ -1,19 +1,35 @@
 // components/landing/PricingSection.tsx
 import { useState } from 'react';
+import { auth } from '@/lib/auth'; // Import the auth library
 
 export default function PricingSection() {
   const [loading, setLoading] = useState('');
 
   const handleCheckout = async (priceId: string) => {
     setLoading(priceId);
+
+    // Get the current user's ID. If not logged in, prompt them.
+    const userId = auth.getUserId();
+    if (!userId) {
+      alert('Please log in or create an account to subscribe.');
+      setLoading('');
+      // Redirect to login page after alert
+      window.location.href = '/login'; 
+      return;
+    }
+
     try {
-      const response = await fetch('/api/create-checkout-session', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ priceId }),
-      });
+      const response = await fetch(
+        'https://vadjgqgyxc.execute-api.us-east-1.amazonaws.com/default/create-checkout-session', // 👈 PASTE THE URL YOU JUST COPIED
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          // Send both the priceId and the userId
+          body: JSON.stringify({ priceId, userId }),
+        }
+      );
 
       if (!response.ok) {
         throw new Error('Failed to create checkout session');
@@ -28,8 +44,8 @@ export default function PricingSection() {
     }
   };
   
-  const monthlyPriceId = 'price_1S6EhJEWbhWs9Y6ojPLRnaJ7'; // Your real monthly ID
-  const annualPriceId = 'price_1S6EiAEWbhWs9Y6oa0djiq82';   // Your real annual ID
+  const monthlyPriceId = 'price_1S6I4wEWbhWs9Y6oRzBGIh8e'; // 👈 Paste your TEST $2/month ID
+  const annualPriceId = 'price_1S6I5FEWbhWs9Y6oGs4CQEc2';   // 👈 Paste your TEST $20/year ID
 
   return (
     <section className="py-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-b from-black to-neutral-900">
