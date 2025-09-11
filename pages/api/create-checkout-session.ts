@@ -28,7 +28,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json({ message: 'Invalid Price ID' });
     }
 
-    const ANNUAL_DISCOUNT_COUPON_ID = 'coupon_..._YOUR_COUPON_ID';
+    const ANNUAL_DISCOUNT_COUPON_ID = process.env.STRIPE_COUPON_ID!;
     const isAnnual = priceId === 'price_..._YOUR_ANNUAL_ID';
 
     const session = await stripe.checkout.sessions.create({
