@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { ACTIVITIES } from "@/data/activities";
 import { auth, getLogoutUrl } from "@/lib/auth";
+import Link from "next/link"; // 👈 1. Import Link
+import Image from "next/image"; // 👈 2. Import Image
 
 type Cat = "full" | "clips";
 const GENRES = ["pop", "rock", "country", "hiphop"] as const;
@@ -14,9 +16,9 @@ export default function MembersPage() {
   useEffect(() => setToken(auth.getIdToken()), []);
 
   const items = useMemo(() => {
-    return ACTIVITIES
-      .filter(a => a.type === cat && a.sub === genre)
-      .filter(a => (query ? a.title.toLowerCase().includes(query.toLowerCase()) : true));
+    return ACTIVITIES.filter((a) => a.type === cat && a.sub === genre).filter((a) =>
+      query ? a.title.toLowerCase().includes(query.toLowerCase()) : true
+    );
   }, [cat, genre, query]);
 
   const openItem = (publicUrl?: string) => {
@@ -87,19 +89,19 @@ export default function MembersPage() {
 
             {token ? (
               <button
-                onClick={() => auth.logout()}
+                onClick={logout} // 👈 3. Call the logout function
                 className="px-3 py-2 rounded-xl border border-neutral-700 text-neutral-200 hover:bg-neutral-900"
               >
                 Log out
               </button>
             ) : (
-        <a
-  href="/login"
-  className="px-3 py-2 rounded-xl text-black font-semibold spotify-green spotify-green-hover hover:scale-[1.02] transition"
->
-  Log in
-</a>
-
+              // 👇 This is the fixed login button
+              <Link
+                href="/login"
+                className="px-3 py-2 rounded-xl text-black font-semibold spotify-green spotify-green-hover hover:scale-[1.02] transition"
+              >
+                Log in
+              </Link>
             )}
           </div>
         </div>
@@ -107,9 +109,7 @@ export default function MembersPage() {
 
       {/* header */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-10 pb-4">
-        <h1 className="text-3xl md:text-4xl font-extrabold text-white">
-          Members Library
-        </h1>
+        <h1 className="text-3xl md:text-4xl font-extrabold text-white">Members Library</h1>
         <p className="text-neutral-400 mt-2">
           {cap(cat)} • {cap(genre)}
           {query ? ` • “${query}”` : ""}
@@ -123,14 +123,14 @@ export default function MembersPage() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {items.map((a) => (
-              <article
-                key={a.id}
-                className="spotify-card overflow-hidden card-hover group"
-              >
+              <article key={a.id} className="spotify-card overflow-hidden card-hover group">
                 <div className="relative">
-                  <img
+                  {/* 👇 This is the improved Image component */}
+                  <Image
                     src={a.cover}
                     alt={a.title}
+                    width={300}
+                    height={160}
                     className="w-full h-40 object-cover transition-transform duration-300 group-hover:scale-105"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
@@ -149,9 +149,7 @@ export default function MembersPage() {
                 </div>
 
                 <div className="p-4">
-                  <h3 className="text-white font-semibold leading-snug">
-                    {a.title}
-                  </h3>
+                  <h3 className="text-white font-semibold leading-snug">{a.title}</h3>
                   <p className="text-neutral-400 text-sm mt-1">
                     {cap(a.sub)} • {a.type === "full" ? "Full Song" : "Clip"}
                   </p>
@@ -214,9 +212,7 @@ function EmptyState() {
     <div className="spotify-card p-12 text-center">
       <div className="text-5xl mb-3">🔎</div>
       <h3 className="text-white text-xl font-semibold">No activities found</h3>
-      <p className="text-neutral-400 mt-1">
-        Try a different genre or category, or clear your search.
-      </p>
+      <p className="text-neutral-400 mt-1">Try a different genre or category, or clear your search.</p>
     </div>
   );
 }

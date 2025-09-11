@@ -30,16 +30,13 @@ export default function PricingSection() {
               <Feature>All Music Genres</Feature>
               <Feature>Priority Support</Feature>
             </ul>
-            {/* Start login flow (redirect page handles auth.login()) */}
-// components/landing/PricingSection.tsx  (only the button hrefs change)
-<Link href="/login" className="w-full inline-block text-center border border-neutral-700 text-neutral-200 hover:border-emerald-400 hover:bg-white/5 py-3 rounded-full transition">
-  Choose Monthly
-</Link>
-
-<Link href="/login" className="w-full inline-block text-center spotify-green spotify-green-hover text-black font-semibold py-3 rounded-full transition">
-  👑 Go Annual
-</Link>
-
+            {/* 👇 This button was missing and has been added */}
+            <Link
+              href="/login"
+              className="w-full inline-block text-center border border-neutral-700 text-neutral-200 hover:border-emerald-400 hover:bg-white/5 py-3 rounded-full transition"
+            >
+              Choose Monthly
+            </Link>
           </div>
 
           {/* Annual */}
@@ -63,7 +60,6 @@ export default function PricingSection() {
               <Feature>Early Access to New Features</Feature>
               <Feature>Downloadable Resources</Feature>
             </ul>
-            {/* Start login flow (redirect page handles auth.login()) */}
             <Link
               href="/login"
               className="w-full inline-block text-center spotify-green spotify-green-hover text-black font-semibold py-3 rounded-full transition"
