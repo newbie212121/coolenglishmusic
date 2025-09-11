@@ -1,6 +1,33 @@
-import Link from "next/link";
+// components/landing/PricingSection.tsx
+import { useState } from 'react';
 
 export default function PricingSection() {
+  const [loading, setLoading] = useState(false);
+
+  const handleCheckout = async (priceId: string) => {
+    setLoading(true);
+    try {
+      const response = await fetch('/api/create-checkout-session', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ priceId }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to create checkout session');
+      }
+
+      const { url } = await response.json();
+      window.location.href = url; // Redirect to Stripe
+    } catch (error) {
+      console.error('Checkout error:', error);
+      alert('Error: Could not redirect to payment page.');
+      setLoading(false);
+    }
+  };
+
   return (
     <section className="py-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-b from-black to-neutral-900">
       <div className="max-w-5xl mx-auto">
@@ -16,7 +43,7 @@ export default function PricingSection() {
 
         <div className="grid md:grid-cols-2 gap-8">
           {/* Monthly */}
-          <div className="spotify-card p-8 border border-neutral-800 hover:border-neutral-700 transition-all rounded-2xl">
+          <div className="spotify-card p-8 border border-neutral-800 hover:border-neutral-700 transition-all rounded-2xl flex flex-col">
             <div className="text-center mb-8">
               <h3 className="text-2xl font-bold text-white mb-2">Monthly</h3>
               <div className="text-5xl font-extrabold text-white mb-2">
@@ -30,17 +57,17 @@ export default function PricingSection() {
               <Feature>All Music Genres</Feature>
               <Feature>Priority Support</Feature>
             </ul>
-            {/* 👇 This button was missing and has been added */}
-            <Link
-              href="/login"
-              className="w-full inline-block text-center border border-neutral-700 text-neutral-200 hover:border-emerald-400 hover:bg-white/5 py-3 rounded-full transition"
+            <button
+              onClick={() => handleCheckout('prod_T2JJm7mMUyAqXB')} // 👈 Replace with your Monthly Price ID
+              disabled={loading}
+              className="mt-auto w-full text-center border border-neutral-700 text-neutral-200 hover:border-emerald-400 hover:bg-white/5 py-3 rounded-full transition disabled:opacity-50"
             >
-              Choose Monthly
-            </Link>
+              {loading ? 'Redirecting...' : 'Choose Monthly'}
+            </button>
           </div>
 
           {/* Annual */}
-          <div className="spotify-card p-8 border-2 border-emerald-400 relative hover:border-emerald-300 transition-all rounded-2xl">
+          <div className="spotify-card p-8 border-2 border-emerald-400 relative hover:border-emerald-300 transition-all rounded-2xl flex flex-col">
             <div className="absolute -top-3 left-1/2 -translate-x-1/2">
               <span className="bg-emerald-400 text-black px-4 py-1 rounded-full text-sm font-semibold">
                 ✨ Best Value
@@ -49,34 +76,25 @@ export default function PricingSection() {
             <div className="text-center mb-8">
               <h3 className="text-2xl font-bold text-white mb-2">Annual</h3>
               <div className="text-5xl font-extrabold text-white mb-1">
-                $15<span className="text-xl text-neutral-400">/year</span>
+                $12<span className="text-xl text-neutral-400">/first year</span>
               </div>
-              <p className="text-emerald-400 font-semibold mb-1">Save 37%</p>
-              <p className="text-neutral-400">Just $1.25 per month</p>
+              <p className="text-emerald-400 font-semibold mb-1">Save 40% on your first year</p>
+              <p className="text-neutral-400">Renews at $20/year</p>
             </div>
             <ul className="space-y-3 text-neutral-300 mb-8">
               <Feature>Everything in Monthly</Feature>
-              <Feature>Save 37% compared to monthly</Feature>
+              <Feature>Save 40% compared to monthly</Feature>
               <Feature>Early Access to New Features</Feature>
               <Feature>Downloadable Resources</Feature>
             </ul>
-            <Link
-              href="/login"
-              className="w-full inline-block text-center spotify-green spotify-green-hover text-black font-semibold py-3 rounded-full transition"
+            <button
+              onClick={() => handleCheckout('prod_T2JKWau3raWyd5')} // 👈 Replace with your Annual Price ID
+              disabled={loading}
+              className="mt-auto w-full text-center spotify-green spotify-green-hover text-black font-semibold py-3 rounded-full transition disabled:opacity-50"
               aria-label="Choose Annual plan"
             >
-              👑 Go Annual
-            </Link>
-          </div>
-        </div>
-
-        <div className="text-center mt-14">
-          <div className="spotify-card p-8 border border-neutral-800 rounded-2xl">
-            <div className="flex flex-col md:flex-row items-center justify-center gap-6 text-white/90">
-              <Pill>👩‍🏫 Perfect for Teachers</Pill>
-              <Pill>🎶 Engaging for Students</Pill>
-              <Pill>⚡ Updated Weekly</Pill>
-            </div>
+              {loading ? 'Redirecting...' : '👑 Go Annual'}
+            </button>
           </div>
         </div>
       </div>
@@ -93,8 +111,4 @@ function Feature({ children }: { children: React.ReactNode }) {
       <span>{children}</span>
     </li>
   );
-}
-
-function Pill({ children }: { children: React.ReactNode }) {
-  return <span className="inline-flex items-center gap-2">{children}</span>;
 }
