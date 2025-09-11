@@ -1,8 +1,10 @@
+// pages/members.tsx
+
 import { useEffect, useMemo, useState } from "react";
 import { ACTIVITIES } from "@/data/activities";
-import { auth, getLogoutUrl } from "@/lib/auth";
-import Link from "next/link"; // 👈 1. Import Link
-import Image from "next/image"; // 👈 2. Import Image
+import { auth } from "@/lib/auth"; // <-- Removed getLogoutUrl
+import Link from "next/link";
+import Image from "next/image";
 
 type Cat = "full" | "clips";
 const GENRES = ["pop", "rock", "country", "hiphop"] as const;
@@ -26,7 +28,6 @@ export default function MembersPage() {
       window.open(publicUrl, "_blank", "noopener,noreferrer");
       return;
     }
-    // Paid item (API to presign comes later)
     if (!token) {
       const go = confirm("This is a premium activity. Log in to unlock. Go to Pricing?");
       if (go) window.location.href = "/pricing";
@@ -35,9 +36,9 @@ export default function MembersPage() {
     alert("Premium item: after we wire the API, this will open with a short-lived S3 link.");
   };
 
+  // 👇 This function now correctly calls auth.logout()
   const logout = () => {
-    auth.clear();
-    window.location.href = getLogoutUrl();
+    auth.logout();
   };
 
   return (
@@ -89,13 +90,12 @@ export default function MembersPage() {
 
             {token ? (
               <button
-                onClick={logout} // 👈 3. Call the logout function
+                onClick={logout}
                 className="px-3 py-2 rounded-xl border border-neutral-700 text-neutral-200 hover:bg-neutral-900"
               >
                 Log out
               </button>
             ) : (
-              // 👇 This is the fixed login button
               <Link
                 href="/login"
                 className="px-3 py-2 rounded-xl text-black font-semibold spotify-green spotify-green-hover hover:scale-[1.02] transition"
@@ -125,7 +125,6 @@ export default function MembersPage() {
             {items.map((a) => (
               <article key={a.id} className="spotify-card overflow-hidden card-hover group">
                 <div className="relative">
-                  {/* 👇 This is the improved Image component */}
                   <Image
                     src={a.cover}
                     alt={a.title}
