@@ -1,54 +1,53 @@
 // components/landing/HeroSection.tsx
 import Link from "next/link";
+import { ArrowRight, Music, Users, Sparkles, Play } from "lucide-react";
 
 export default function HeroSection() {
   return (
-    <section className="relative py-20 lg:py-28 px-4 sm:px-6 lg:px-8 overflow-hidden bg-black">
-      <div className="pointer-events-none absolute inset-0 -z-10">
-        <div className="mx-auto h-80 w-80 translate-y-[-30%] rounded-full bg-gradient-to-tr from-emerald-400/20 via-sky-400/10 to-fuchsia-400/10 blur-3xl" />
-      </div>
-
-      <div className="relative max-w-7xl mx-auto text-center">
-        <div className="inline-flex items-center gap-2 bg-neutral-900/70 border border-neutral-800 rounded-full px-4 py-2 text-sm text-neutral-300 mb-8">
-          <span className="text-emerald-400">✨</span>
-          <span>Transform English Learning Through Music</span>
+    <section className="relative py-20 lg:py-32 px-4 sm:px-6 lg:px-8 overflow-hidden spotify-darker">
+      <div className="absolute inset-0 bg-gradient-to-b from-gray-900 via-black to-black opacity-50"></div>
+      <div className="relative max-w-7xl mx-auto">
+        <div className="text-center mb-16">
+          <div className="inline-flex items-center space-x-2 bg-gray-900/50 border border-gray-700 rounded-full px-4 py-2 text-sm text-gray-300 mb-8">
+            <Sparkles className="w-4 h-4 text-green-400" />
+            <span>Transform English Learning Through Music</span>
+          </div>
+          <h1 className="text-5xl md:text-7xl lg:text-8xl font-bold text-white mb-8 leading-tight">
+            Cool English<br />
+            <span className="gradient-text">Music</span>
+          </h1>
+          <p className="text-xl md:text-2xl text-gray-400 mb-12 max-w-3xl mx-auto leading-relaxed">
+            Interactive music activities that make English learning engaging and effective. Perfect for teachers and students of all levels.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-20">
+            <Link href="/members" className="flex items-center spotify-green spotify-green-hover text-black font-semibold px-8 py-4 text-lg rounded-full transition-transform">
+              <Play className="w-5 h-5 mr-2" />
+              Try Free Activities
+            </Link>
+            <Link href="/pricing" className="flex items-center bg-transparent border-2 border-gray-600 text-white hover:bg-gray-800 hover:border-gray-500 px-8 py-4 text-lg rounded-full transition-all">
+              View Premium Plans
+              <ArrowRight className="w-5 h-5 ml-2" />
+            </Link>
+          </div>
         </div>
-
-        <h1 className="text-5xl md:text-7xl font-extrabold text-white leading-tight tracking-tight">
-          Cool English<br /><span className="text-emerald-400">Music</span>
-        </h1>
-
-        <p className="text-lg md:text-xl text-neutral-400 mt-6 max-w-3xl mx-auto">
-          Interactive music activities that make English learning engaging and effective—perfect for teachers and students of all levels.
-        </p>
-
-        <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mt-10 mb-14">
-          <Link href="/activities" className="spotify-green spotify-green-hover text-black font-semibold px-8 py-3 text-lg rounded-full transform hover:scale-105 transition">
-            ▶ Try Free Activities
-          </Link>
-          <Link href="/pricing" className="border border-neutral-700 text-white hover:bg-neutral-900 px-8 py-3 text-lg rounded-full transform hover:scale-105 transition">
-            View Premium Plans →
-          </Link>
-        </div>
-
-        <div className="grid md:grid-cols-3 gap-8 text-left">
-          <Feature icon="🎵" title="Interactive Activities" text="Engaging, music-based exercises that improve listening, comprehension and vocabulary." />
-          <Feature icon="👥" title="For Everyone" text="Resources designed for classroom instruction and individual learning across all proficiency levels." />
-          <Feature icon="⚡" title="Fresh Content" text="New activities and songs added weekly to keep your learning experience dynamic and current." />
+        <div className="grid md:grid-cols-3 gap-8">
+          <Feature icon={<Music className="w-10 h-10 text-green-400" />} title="Interactive Activities" text="Engaging music-based exercises that improve listening and expand vocabulary." />
+          <Feature icon={<Users className="w-10 h-10 text-green-400" />} title="For Everyone" text="Resources designed for classroom instruction and individual learning." />
+          <Feature icon={<Sparkles className="w-10 h-10 text-green-400" />} title="Fresh Content" text="New activities and songs added weekly to keep your learning experience dynamic." />
         </div>
       </div>
     </section>
   );
 }
 
-function Feature({ icon, title, text }: { icon: string; title: string; text: string }) {
+function Feature({ icon, title, text }: { icon: React.ReactNode; title: string; text: string }) {
   return (
-    <div className="spotify-card p-6">
-      <div className="w-16 h-16 mb-6 flex items-center justify-center rounded-2xl bg-neutral-900 group-hover:bg-neutral-800 transition-colors">
-        <span className="text-2xl">{icon}</span>
+    <div className="text-center group">
+      <div className="spotify-card w-20 h-20 rounded-2xl mx-auto mb-6 flex items-center justify-center group-hover:bg-gray-700 transition-colors">
+        {icon}
       </div>
-      <h3 className="text-xl font-semibold text-white mb-2">{title}</h3>
-      <p className="text-neutral-400">{text}</p>
+      <h3 className="text-2xl font-semibold text-white mb-3">{title}</h3>
+      <p className="text-gray-400 leading-relaxed">{text}</p>
     </div>
   );
 }
