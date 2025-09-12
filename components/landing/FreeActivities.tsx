@@ -1,27 +1,27 @@
 // components/landing/FreeActivities.tsx
+import Image from "next/image";
 import { Play, Clock } from "lucide-react";
 
-// This data can be moved to a central file later
 const SAMPLES = [
   {
-    title: "Taylor Swift - Shake It Off",
-    description: "Learn vocabulary and expressions from this upbeat pop song.",
-    img: "/samples/taylor.jpg", // Make sure you have this image in your /public/samples folder
+    title: "Golden - Full Song Pop",
+    description: "Learn vocabulary and expressions with this upbeat pop song by Huntrix.",
+    img: "/samples/golden.jpg", // Make sure you have this image in your /public/samples folder
     href: "https://d1uqdf1080xgw5.cloudfront.net/MUSICVIDEOS/POP/Huntrix-Golden/golden+index.html",
-    duration: "15 minutes",
-    level: "Intermediate",
+    duration: "10 minutes",
+    level: "Beginner",
     category: "Full Song",
     genre: "Pop",
   },
   {
-    title: "Country Road Vocabulary",
-    description: "Explore countryside vocabulary through classic country music clips.",
-    img: "/samples/country-road.jpg", // Make sure you have this image in your /public/samples folder
+    title: "Elvis Song Clips Game",
+    description: "Explore vocabulary and listening skills with classic rock clips from Elvis.",
+    img: "/samples/elvis.jpg", // Make sure you have this image in your /public/samples folder
     href: "https://d1uqdf1080xgw5.cloudfront.net/music+video+clips+game/Elvis+Edition/Elvis+index.html",
-    duration: "10 minutes",
-    level: "Beginner",
+    duration: "15 minutes",
+    level: "Intermediate",
     category: "Song Clips",
-    genre: "Country",
+    genre: "Rock",
   },
 ];
 
@@ -39,7 +39,7 @@ export default function FreeActivities() {
           {SAMPLES.map((activity) => (
             <a key={activity.title} href={activity.href} target="_blank" rel="noopener noreferrer" className="spotify-card rounded-2xl overflow-hidden card-hover group">
               <div className="relative">
-                <img src={activity.img} alt={activity.title} className="w-full h-64 object-cover transition-transform duration-300 group-hover:scale-105" />
+                <Image src={activity.img} alt={activity.title} width={600} height={350} className="w-full h-64 object-cover transition-transform duration-300 group-hover:scale-105" />
                 <div className="absolute top-4 left-4 flex space-x-2">
                   <span className="bg-green-400 text-black px-3 py-1 rounded-full text-sm font-semibold">FREE</span>
                   <span className="bg-black/50 backdrop-blur text-white px-3 py-1 rounded-full text-sm">{activity.genre}</span>
