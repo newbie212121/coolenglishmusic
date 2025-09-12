@@ -1,3 +1,6 @@
+// components/ActivityCard.tsx
+import Image from "next/image"; // 👈 Import the Image component
+
 type Props = { title: string; cover: string; onOpen: () => void; badge?: string };
 
 export default function ActivityCard({ title, cover, onOpen, badge }: Props) {
@@ -8,7 +11,14 @@ export default function ActivityCard({ title, cover, onOpen, badge }: Props) {
                  hover:ring-blue-300 shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition"
     >
       <div className="relative">
-        <img src={cover} alt={title} className="w-full h-40 object-cover transition group-hover:scale-[1.02]" />
+        {/* 👇 Use the optimized Image component */}
+        <Image 
+          src={cover} 
+          alt={title} 
+          width={300} 
+          height={160}
+          className="w-full h-40 object-cover transition group-hover:scale-[1.02]" 
+        />
         {badge && (
           <span className="absolute top-2 left-2 text-[11px] px-2 py-1 rounded-md bg-white/90 ring-1 ring-slate-200">
             {badge}
