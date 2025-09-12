@@ -1,20 +1,21 @@
-// components/NavBar.tsx
+// components/landing/NavBar.tsx
 import Link from "next/link";
-import { auth } from "@/lib/auth";
 import { useEffect, useState } from "react";
+import { getCurrentUser, signInWithRedirect, signOut } from "aws-amplify/auth";
+import type { AuthUser } from "aws-amplify/auth";
 
 export default function NavBar() {
-  const [token, setToken] = useState<string | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
 
   useEffect(() => {
-    const checkAuthStatus = () => setToken(auth.getIdToken());
-    checkAuthStatus();
-    window.addEventListener("focus", checkAuthStatus);
-    window.addEventListener("storage", checkAuthStatus);
-    return () => {
-      window.removeEventListener("focus", checkAuthStatus);
-      window.removeEventListener("storage", checkAuthStatus);
-    };
+    (async () => {
+      try {
+        const u = await getCurrentUser();
+        setUser(u);
+      } catch {
+        setUser(null);
+      }
+    })();
   }, []);
 
   return (
@@ -22,35 +23,34 @@ export default function NavBar() {
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           <Link href="/" className="text-white text-xl font-bold">
-            <span className="text-emerald-400">Cool</span>English<span className="text-white/80">Music</span>
+            <span className="text-emerald-400">Cool</span>English
+            <span className="text-white/80">Music</span>
           </Link>
 
-          <nav className="hidden md:flex items-center gap-6 text-sm">
-            <Link className="text-neutral-300 hover:text-emerald-400 transition" href="/">Home</Link>
-            <Link className="text-neutral-300 hover:text-emerald-400 transition" href="/activities">Activities</Link>
-            <Link className="text-neutral-300 hover:text-emerald-400 transition" href="/pricing">Pricing</Link>
-          </nav>
+          <nav className="flex items-center gap-4 text-sm">
+            <Link href="/pricing" className="text-neutral-300 hover:text-white">
+              Pricing
+            </Link>
+            <Link href="/members" className="text-neutral-300 hover:text-white">
+              Members
+            </Link>
 
-          <div className="flex items-center gap-4">
-            {token ? (
-              <>
-                <Link href="/members" className="text-sm text-neutral-300 hover:text-emerald-400">Premium</Link>
-                <button
-                  onClick={() => auth.logout()}
-                  className="rounded-lg px-3 py-1.5 text-sm border border-neutral-700 text-neutral-200 hover:bg-neutral-800 transition"
-                >
-                  Logout
-                </button>
-              </>
+            {user ? (
+              <button
+                onClick={() => signOut()}
+                className="bg-neutral-700 px-3 py-1.5 rounded-lg"
+              >
+                Logout
+              </button>
             ) : (
-              <Link
-                href="/login"
-                className="rounded-lg px-4 py-2 text-sm text-black font-semibold spotify-green spotify-green-hover shadow-lg"
+              <button
+                onClick={() => signInWithRedirect()}
+                className="spotify-green text-black font-semibold px-4 py-2 rounded-lg"
               >
                 Log in
-              </Link>
+              </button>
             )}
-          </div>
+          </nav>
         </div>
       </div>
     </header>
