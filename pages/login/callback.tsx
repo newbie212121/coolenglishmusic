@@ -1,7 +1,7 @@
 // pages/login/callback.tsx
 import { useEffect } from 'react';
 import { useRouter } from 'next/router';
-import { handleSignIn } from 'aws-amplify/auth';
+import { handleOAuthSignIn } from 'aws-amplify/auth'; // Correct function name
 
 export default function Callback() {
   const router = useRouter();
@@ -9,15 +9,11 @@ export default function Callback() {
   useEffect(() => {
     (async () => {
       try {
-        await handleSignIn();           // finishes the OAuth code exchange
+        await handleOAuthSignIn(); // Use the correct function
       } catch (e) {
         console.error('Amplify handleSignIn error', e);
       } finally {
-        // Clean URL and continue
-        if (typeof window !== 'undefined') {
-          history.replaceState(null, '', window.location.pathname);
-        }
-        router.replace('/members');     // or wherever you want to land
+        router.replace('/members');
       }
     })();
   }, [router]);
