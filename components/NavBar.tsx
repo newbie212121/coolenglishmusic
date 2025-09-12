@@ -1,48 +1,45 @@
 // components/NavBar.tsx
-import Link from "next/link";
-import { auth } from "@/lib/auth";
-import { useEffect, useState } from "react";
+import Link from 'next/link';
+import { useEffect, useState } from 'react';
+import { getCurrentUser, signInWithRedirect, signOut } from 'aws-amplify/auth';
+import type { AuthUser } from 'aws-amplify/auth';
 
 export default function NavBar() {
-  const [token, setToken] = useState<string | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
 
   useEffect(() => {
-    const checkAuthStatus = () => setToken(auth.getIdToken());
-    checkAuthStatus();
-    window.addEventListener("focus", checkAuthStatus);
-    window.addEventListener("storage", checkAuthStatus);
-    return () => {
-      window.removeEventListener("focus", checkAuthStatus);
-      window.removeEventListener("storage", checkAuthStatus);
-    };
+    (async () => {
+      try {
+        const u = await getCurrentUser();
+        setUser(u);
+      } catch {
+        setUser(null);
+      }
+    })();
   }, []);
 
+  const doLogin = () => {
+    // With Cognito Hosted UI configured, no provider argument is needed.
+    // This opens your Managed Login page.
+    return signInWithRedirect();
+  };
+
+  const doLogout = () => signOut(); // will redirect to your sign-out URL
+
   return (
-    <header className="sticky top-0 z-50 bg-black/70 backdrop-blur border-b border-neutral-800">
+    <header className="sticky top-0 z-50 bg-black/80 backdrop-blur border-b border-neutral-800">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           <Link href="/" className="text-white text-xl font-bold">
-            CoolEnglish<span className="text-emerald-400">Music</span>
+            <span className="text-emerald-400">Cool</span>English<span className="text-white/80">Music</span>
           </Link>
-
-          <nav className="flex items-center gap-5 text-sm">
-            <Link className="text-neutral-300 hover:text-emerald-400" href="/pricing">Pricing</Link>
-            <Link className="text-neutral-300 hover:text-emerald-400" href="/members">Members</Link>
-            
-            {token ? (
-              <button
-                onClick={() => auth.logout()}
-                className="rounded-lg px-3 py-1.5 border border-neutral-700 text-neutral-200 hover:bg-neutral-900"
-              >
-                Log out
-              </button>
+          <nav className="flex items-center gap-4 text-sm">
+            <Link href="/pricing" className="text-neutral-300 hover:text-white">Pricing</Link>
+            <Link href="/members" className="text-neutral-300 hover:text-white">Members</Link>
+            {user ? (
+              <button onClick={doLogout} className="bg-neutral-700 px-3 py-1.5 rounded-lg">Logout</button>
             ) : (
-              <Link
-                href="/login"
-                className="rounded-lg px-3 py-1.5 bg-gradient-to-r from-emerald-500 to-emerald-600 text-black font-semibold hover:brightness-110 shadow"
-              >
-                Log in
-              </Link>
+              <button onClick={doLogin} className="spotify-green text-black font-semibold px-4 py-2 rounded-lg">Log in</button>
             )}
           </nav>
         </div>
