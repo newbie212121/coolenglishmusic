@@ -1,55 +1,53 @@
 // components/landing/PricingSection.tsx
 import { useState } from 'react';
 import { signInWithRedirect } from 'aws-amplify/auth';
-import { getUserSub, getIdTokenString } from '@/lib/auth-helpers';
+import { getIdTokenString, getUserSub } from '@/lib/auth-helpers';
 import { Check, Crown, Sparkles } from 'lucide-react';
 
 export default function PricingSection() {
   const [loading, setLoading] = useState<string>('');
 
-  // TODO: replace these with your real Stripe Price IDs (test mode is fine)
-  const monthlyPriceId = 'price_1S6I4wEWbhWs9Y6oRzBGIh8e';
-  const annualPriceId  = 'price_1S6I5FEWbhWs9Y6oGs4CQEc2';
+  // ✅ paste your API Gateway endpoint (stage + route) EXACTLY as shown in Lambda
+  const CHECKOUT_API =
+    'https://vadjgqgyxc.execute-api.us-east-1.amazonaws.com/default/create-checkout-session';
 
-  // Our Next.js API route (we’ll create it in step 2)
-  const CHECKOUT_API = '/api/create-checkout-session';
+  // ✅ your Stripe Price IDs (test mode)
+  const monthlyPriceId = 'price_xxx_monthly';
+  const annualPriceId  = 'price_xxx_annual';
 
   const handleCheckout = async (priceId: string) => {
     try {
       setLoading(priceId);
 
-      // 1) Must be logged in
-      const userId = await getUserSub();
-      if (!userId) {
+      // must be signed in
+      const user = await getUserSub();
+      if (!user) {
         await signInWithRedirect();
-        setLoading('');
         return;
       }
 
-      // 2) Send Cognito ID token to the API route as Bearer auth
+      // include Cognito ID token so backend can trust the user if/when you add verification
       const idToken = await getIdTokenString();
+
       const res = await fetch(CHECKOUT_API, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          // This is fine even if your API currently doesn’t validate the token.
           Authorization: `Bearer ${idToken}`,
         },
         body: JSON.stringify({ priceId }),
       });
 
-      const data = await res.json().catch(() => ({} as any));
+      const data = await res.json();
       if (!res.ok || !data?.url) {
-        console.error('Checkout API error:', { status: res.status, data });
-        alert('Error: Could not redirect to payment page.');
-        setLoading('');
-        return;
+        throw new Error(data?.error?.message || data?.message || 'Checkout API error');
       }
 
-      // 3) Redirect to Stripe’s hosted checkout
       window.location.href = data.url;
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      alert('Error: Could not redirect to payment page.');
+      alert(`Error: ${err.message || 'Could not redirect to payment page.'}`);
       setLoading('');
     }
   };
@@ -68,7 +66,7 @@ export default function PricingSection() {
         </div>
 
         <div className="grid md:grid-cols-2 gap-8">
-          {/* Monthly Plan */}
+          {/* Monthly */}
           <div className="spotify-card rounded-2xl p-8 border border-gray-800 hover:border-gray-700 transition-all flex flex-col">
             <div className="text-center mb-8">
               <h3 className="text-2xl font-bold text-white mb-4">Monthly</h3>
@@ -92,9 +90,9 @@ export default function PricingSection() {
             </button>
           </div>
 
-          {/* Annual Plan */}
+          {/* Annual */}
           <div className="spotify-card rounded-2xl p-8 border-2 border-green-400 relative hover:border-green-300 transition-all flex flex-col">
-            <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
+            <div className="absolute -top-3 left-1/2 -translate-x-1/2">
               <span className="bg-green-400 text-black px-4 py-1 rounded-full text-sm font-semibold flex items-center">
                 <Sparkles className="w-4 h-4 mr-1" />
                 Best Value
