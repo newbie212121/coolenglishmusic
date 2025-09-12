@@ -1,21 +1,14 @@
 // pages/login/callback.tsx
 import { useEffect } from 'react';
 import { useRouter } from 'next/router';
-import { handleOAuthSignIn } from 'aws-amplify/auth'; // Correct function name
 
 export default function Callback() {
   const router = useRouter();
 
   useEffect(() => {
-    (async () => {
-      try {
-        await handleOAuthSignIn(); // Use the correct function
-      } catch (e) {
-        console.error('Amplify handleSignIn error', e);
-      } finally {
-        router.replace('/members');
-      }
-    })();
+    // The Amplify library has already handled the login in the background.
+    // We just need to redirect the user to the members area.
+    router.replace('/members');
   }, [router]);
 
   return (
