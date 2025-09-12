@@ -1,44 +1,53 @@
 // components/landing/PricingSection.tsx
 import { useState } from 'react';
 import { signInWithRedirect } from 'aws-amplify/auth';
-import { getUserSub } from '@/lib/auth-helpers'; // if your @ alias isn't set, use: '../../lib/auth-helpers'
+import { getUserSub, getIdTokenString } from '@/lib/auth-helpers'; // if the @ alias fails, use: '../../lib/auth-helpers'
 import { Check, Crown, Sparkles } from 'lucide-react';
 
 export default function PricingSection() {
   const [loading, setLoading] = useState<string>('');
 
-  // same price IDs you already had
+  // ✅ Your Stripe price IDs (test mode)
+  // Keep these or replace with your own from the Stripe dashboard
   const monthlyPriceId = 'price_1S6I4wEWbhWs9Y6oRzBGIh8e';
   const annualPriceId  = 'price_1S6I5FEWbhWs9Y6oGs4CQEc2';
 
-  // your existing API endpoint
-  const CHECKOUT_API =
-    'https://vadjgqgyxc.execute-api.us-east-1.amazonaws.com/default/create-checkout-session';
+  // ✅ Our Next.js API route that creates the Checkout Session
+  const CHECKOUT_API = '/api/create-checkout-session';
 
   const handleCheckout = async (priceId: string) => {
     try {
       setLoading(priceId);
 
-      // 1) Ensure user is logged in (Amplify)
+      // 1) Ensure the user is logged in
       const userId = await getUserSub();
       if (!userId) {
-        await signInWithRedirect(); // sends them to Cognito login, returns to /login/callback
+        await signInWithRedirect(); // returns via /login/callback
         setLoading('');
         return;
       }
 
-      // 2) Create Stripe Checkout Session
+      // 2) Get Cognito ID token and call our API with Bearer auth
+      const idToken = await getIdTokenString();
       const res = await fetch(CHECKOUT_API, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ priceId, userId }),
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({ priceId }),
       });
 
-      if (!res.ok) throw new Error('Checkout API request failed');
-      const { url } = await res.json();
+      const data = await res.json().catch(() => ({} as any));
+      if (!res.ok || !data?.url) {
+        console.error('Checkout API error:', { status: res.status, data });
+        alert('Error: Could not redirect to payment page.');
+        setLoading('');
+        return;
+      }
 
       // 3) Redirect to Stripe-hosted checkout
-      window.location.href = url;
+      window.location.href = data.url;
     } catch (err) {
       console.error(err);
       alert('Error: Could not redirect to payment page.');
