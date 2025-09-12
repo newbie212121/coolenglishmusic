@@ -1,48 +1,29 @@
-@import "tailwindcss";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-/* Global dark theme */
-body { @apply bg-neutral-950 text-neutral-200 antialiased; }
-a { @apply text-neutral-200/90; }
-a:hover { @apply text-emerald-400; }
+body {
+  @apply bg-black text-gray-300;
+}
 
-/* Design helpers used by the new sections */
-@layer components {
-  .gradient-hero { @apply bg-gradient-to-b from-neutral-950 via-black to-black; }
-  .spotify-card { @apply bg-neutral-900/60 border border-neutral-800 rounded-2xl; }
-  .spotify-green { background: #22c55e; }                /* emerald-500 */
-  .spotify-green-hover:hover { filter: brightness(1.05); }
-  .gradient-text {
-    background: linear-gradient(90deg, #fff, #93c5fd 35%, #60a5fa);
-    -webkit-background-clip: text; background-clip: text; color: transparent;
-  }
-  .card-hover { @apply transition-transform duration-200 hover:-translate-y-0.5 hover:shadow-xl; }
-  .icon { @apply text-neutral-200; }                     /* higher-contrast icons */
-  .icon-muted { @apply text-neutral-400; }               /* secondary icons */
-}
-.spotify-dark {
-  background-color: #121212;
-}
-.spotify-darker {
-  background-color: #000000;
-}
 .spotify-card {
-  background-color: #181818;
-  border-radius: 0.75rem;
-  transition: background-color 0.3s ease;
+  @apply bg-[#181818] rounded-xl transition-colors duration-300;
 }
+
 .card-hover:hover {
-  background-color: #282828;
+  @apply bg-[#282828];
 }
+
 .spotify-green {
-  background-color: #1DB954;
-  color: black;
+  @apply bg-[#1DB954] text-black;
 }
+
 .spotify-green-hover:hover {
-  transform: scale(1.05);
-  background-color: #1ED760;
+  @apply scale-105 bg-[#1ED760];
 }
+
 .gradient-text {
-  background: linear-gradient(to right, #1DB954, #1ED760);
+  @apply bg-gradient-to-r from-green-400 to-emerald-500;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
