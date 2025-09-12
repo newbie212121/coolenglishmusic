@@ -2,25 +2,22 @@
 import { Amplify } from 'aws-amplify';
 
 export const configureAmplify = () => {
-  const domain = (process.env.NEXT_PUBLIC_COGNITO_DOMAIN || '').replace(/^https?:\/\//, '').replace(/\/+$/, '');
-
   Amplify.configure(
     {
       Auth: {
         Cognito: {
-          userPoolId: process.env.NEXT_PUBLIC_COGNITO_POOL_ID!,
-          userPoolClientId: process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID!,
-          // (Optional) tell Amplify which identifiers you allow
+          // 🔒 hard-coded to your pool + the client you showed in your screenshot
+          userPoolId: 'us-east-1_XFxa8jC5S',
+          userPoolClientId: '7cjtqru06qs2jelqq25i3ocoa0',
           loginWith: {
-            username: false,
-            email: true,
-            phone: false,
             oauth: {
-              domain,                                // e.g. us-xxx.auth.us-east-1.amazoncognito.com
+              // domain WITHOUT https:// (Amplify v6 expects bare hostname)
+              domain: 'us-east-1xfxa8jc5s.auth.us-east-1.amazoncognito.com',
               scopes: ['openid', 'email', 'profile'],
-              redirectSignIn: [process.env.NEXT_PUBLIC_LOGIN_REDIRECT!],   // https://.../login/callback
-              redirectSignOut: [process.env.NEXT_PUBLIC_LOGOUT_REDIRECT!], // https://.../
-              responseType: 'code',                  // <-- Code + PKCE (recommended)
+              // these MUST match the app client's lists exactly
+              redirectSignIn: ['https://main.d36vamn6zdb2sp.amplifyapp.com/login/callback'],
+              redirectSignOut: ['https://main.d36vamn6zdb2sp.amplifyapp.com/'],
+              responseType: 'code', // PKCE code flow
             },
           },
         },
