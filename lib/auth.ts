@@ -1,9 +1,12 @@
 // lib/auth.ts
 
-const COGNITO_DOMAIN = process.env.NEXT_PUBLIC_COGNITO_DOMAIN!;
-const CLIENT_ID = process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID!;
-const LOGIN_REDIRECT = process.env.NEXT_PUBLIC_LOGIN_REDIRECT!;
-const LOGOUT_REDIRECT = process.env.NEXT_PUBLIC_LOGOUT_REDIRECT!;
+// 👇 Your actual Cognito details are now here
+const COGNITO_DOMAIN = "https://us-east-1xfxa8jc5s.auth.us-east-1.amazoncognito.com";
+const CLIENT_ID = "7cjtqru06qs2jelqq25i3ocoa0";
+
+// 👇 Your redirect URLs from Amplify
+const LOGIN_REDIRECT = "https://main.d36vamn6zdb2sp.amplifyapp.com/login/callback";
+const LOGOUT_REDIRECT = "https://main.d36vamn6zdb2sp.amplifyapp.com/";
 
 const ID_TOKEN_KEY = 'coolenglish_id_token';
 const STATE_KEY = 'coolenglish_auth_state';
