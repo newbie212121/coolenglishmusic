@@ -1,33 +1,32 @@
 // components/landing/PricingSection.tsx
 import { useState } from 'react';
 import { signInWithRedirect } from 'aws-amplify/auth';
-import { getUserSub, getIdTokenString } from '@/lib/auth-helpers'; // if the @ alias fails, use: '../../lib/auth-helpers'
+import { getUserSub, getIdTokenString } from '@/lib/auth-helpers';
 import { Check, Crown, Sparkles } from 'lucide-react';
 
 export default function PricingSection() {
   const [loading, setLoading] = useState<string>('');
 
-  // ✅ Your Stripe price IDs (test mode)
-  // Keep these or replace with your own from the Stripe dashboard
+  // TODO: replace these with your real Stripe Price IDs (test mode is fine)
   const monthlyPriceId = 'price_1S6I4wEWbhWs9Y6oRzBGIh8e';
   const annualPriceId  = 'price_1S6I5FEWbhWs9Y6oGs4CQEc2';
 
-  // ✅ Our Next.js API route that creates the Checkout Session
+  // Our Next.js API route (we’ll create it in step 2)
   const CHECKOUT_API = '/api/create-checkout-session';
 
   const handleCheckout = async (priceId: string) => {
     try {
       setLoading(priceId);
 
-      // 1) Ensure the user is logged in
+      // 1) Must be logged in
       const userId = await getUserSub();
       if (!userId) {
-        await signInWithRedirect(); // returns via /login/callback
+        await signInWithRedirect();
         setLoading('');
         return;
       }
 
-      // 2) Get Cognito ID token and call our API with Bearer auth
+      // 2) Send Cognito ID token to the API route as Bearer auth
       const idToken = await getIdTokenString();
       const res = await fetch(CHECKOUT_API, {
         method: 'POST',
@@ -46,7 +45,7 @@ export default function PricingSection() {
         return;
       }
 
-      // 3) Redirect to Stripe-hosted checkout
+      // 3) Redirect to Stripe’s hosted checkout
       window.location.href = data.url;
     } catch (err) {
       console.error(err);
