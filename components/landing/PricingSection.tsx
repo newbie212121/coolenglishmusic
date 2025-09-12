@@ -1,53 +1,33 @@
 // components/landing/PricingSection.tsx
 import { useState } from 'react';
-import { signInWithRedirect } from 'aws-amplify/auth';
-import { getIdTokenString, getUserSub } from '@/lib/auth-helpers';
 import { Check, Crown, Sparkles } from 'lucide-react';
+
+const API_URL = 'https://vadjgqgyxc.execute-api.us-east-1.amazonaws.com/default/create-checkout-session';
+
+// Your Stripe Price IDs (test mode)
+const MONTHLY_PRICE = 'price_1S6I4wEWbhWs9Y6oRzBGIh8e'; // update if needed
+const ANNUAL_PRICE  = 'price_1S6I5FEWbhWs9Y6oGs4CQEc2'; // update if needed
 
 export default function PricingSection() {
   const [loading, setLoading] = useState<string>('');
 
-  // ✅ paste your API Gateway endpoint (stage + route) EXACTLY as shown in Lambda
-  const CHECKOUT_API =
-    'https://vadjgqgyxc.execute-api.us-east-1.amazonaws.com/default/create-checkout-session';
-
-  // ✅ your Stripe Price IDs (test mode)
-  const monthlyPriceId = 'price_xxx_monthly';
-  const annualPriceId  = 'price_xxx_annual';
-
-  const handleCheckout = async (priceId: string) => {
+  const go = async (priceId: string) => {
     try {
       setLoading(priceId);
 
-      // must be signed in
-      const user = await getUserSub();
-      if (!user) {
-        await signInWithRedirect();
-        return;
-      }
-
-      // include Cognito ID token so backend can trust the user if/when you add verification
-      const idToken = await getIdTokenString();
-
-      const res = await fetch(CHECKOUT_API, {
+      const res = await fetch(API_URL, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          // This is fine even if your API currently doesn’t validate the token.
-          Authorization: `Bearer ${idToken}`,
-        },
+        headers: { 'Content-Type': 'application/json' }, // ❗ no Authorization header
         body: JSON.stringify({ priceId }),
+        // mode: 'cors' // not required, default is fine
       });
 
       const data = await res.json();
-      if (!res.ok || !data?.url) {
-        throw new Error(data?.error?.message || data?.message || 'Checkout API error');
-      }
+      if (!res.ok || !data?.url) throw new Error(data?.message || 'Checkout API error');
 
       window.location.href = data.url;
-    } catch (err: any) {
-      console.error(err);
-      alert(`Error: ${err.message || 'Could not redirect to payment page.'}`);
+    } catch (e: any) {
+      alert(e?.message || 'Could not redirect to payment page.');
       setLoading('');
     }
   };
@@ -56,9 +36,7 @@ export default function PricingSection() {
     <section className="py-20 px-4 sm:px-6 lg:px-8 bg-black">
       <div className="max-w-5xl mx-auto">
         <div className="text-center mb-16">
-          <h2 className="text-4xl md:text-5xl font-bold text-white mb-6">
-            Simple, Flexible Pricing
-          </h2>
+          <h2 className="text-4xl md:text-5xl font-bold text-white mb-6">Simple, Flexible Pricing</h2>
           <div className="w-24 h-1 bg-green-400 mx-auto rounded-full mb-6" />
           <p className="text-xl text-gray-400 max-w-2xl mx-auto">
             Unlock unlimited access to our growing library of interactive music activities.
@@ -76,17 +54,17 @@ export default function PricingSection() {
               <p className="text-gray-400">Perfect for trying things out.</p>
             </div>
             <div className="space-y-4 mb-8 flex-grow">
-              <FeatureItem>Unlimited Activity Access</FeatureItem>
-              <FeatureItem>Weekly New Content</FeatureItem>
-              <FeatureItem>All Music Genres</FeatureItem>
-              <FeatureItem>Priority Support</FeatureItem>
+              <Feature>Unlimited Activity Access</Feature>
+              <Feature>Weekly New Content</Feature>
+              <Feature>All Music Genres</Feature>
+              <Feature>Priority Support</Feature>
             </div>
             <button
-              onClick={() => handleCheckout(monthlyPriceId)}
+              onClick={() => go(MONTHLY_PRICE)}
               disabled={!!loading}
               className="w-full border border-gray-600 text-white hover:bg-gray-800 py-3 text-lg rounded-full disabled:opacity-50"
             >
-              {loading === monthlyPriceId ? 'Processing…' : 'Choose Monthly'}
+              {loading === MONTHLY_PRICE ? 'Processing…' : 'Choose Monthly'}
             </button>
           </div>
 
@@ -107,18 +85,18 @@ export default function PricingSection() {
               <p className="text-gray-400">Just $1.25 per month</p>
             </div>
             <div className="space-y-4 mb-8 flex-grow">
-              <FeatureItem>Everything in Monthly</FeatureItem>
-              <FeatureItem>Save 37% compared to monthly</FeatureItem>
-              <FeatureItem>Early Access to New Features</FeatureItem>
-              <FeatureItem>Downloadable Resources</FeatureItem>
+              <Feature>Everything in Monthly</Feature>
+              <Feature>Save 37% compared to monthly</Feature>
+              <Feature>Early Access to New Features</Feature>
+              <Feature>Downloadable Resources</Feature>
             </div>
             <button
-              onClick={() => handleCheckout(annualPriceId)}
+              onClick={() => go(ANNUAL_PRICE)}
               disabled={!!loading}
               className="w-full spotify-green spotify-green-hover text-black font-semibold py-3 text-lg rounded-full disabled:opacity-50"
             >
               <Crown className="w-5 h-5 mr-2 inline" />
-              {loading === annualPriceId ? 'Processing…' : 'Go Annual'}
+              {loading === ANNUAL_PRICE ? 'Processing…' : 'Go Annual'}
             </button>
           </div>
         </div>
@@ -127,11 +105,13 @@ export default function PricingSection() {
   );
 }
 
-const FeatureItem = ({ children }: { children: React.ReactNode }) => (
-  <div className="flex items-center space-x-3">
-    <div className="w-5 h-5 rounded-full bg-green-400/20 flex items-center justify-center flex-shrink-0">
-      <Check className="w-3 h-3 text-green-400" />
+function Feature({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex items-center space-x-3">
+      <div className="w-5 h-5 rounded-full bg-green-400/20 flex items-center justify-center flex-shrink-0">
+        <Check className="w-3 h-3 text-green-400" />
+      </div>
+      <span className="text-gray-300">{children}</span>
     </div>
-    <span className="text-gray-300">{children}</span>
-  </div>
-);
+  );
+}
