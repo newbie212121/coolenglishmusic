@@ -3,7 +3,6 @@ import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 
-// Correct Activity Type Definition
 type Activity = {
   title: string;
   caption: string;
@@ -12,26 +11,20 @@ type Activity = {
   genre: "Pop" | "Rock" | "Country" | "Hip-Hop";
   category: "Full Songs" | "Song Clips";
   premium?: boolean;
-  duration?: string;
-  level?: "Beginner" | "Intermediate" | "Advanced";
 };
 
-// Data (assuming this is defined elsewhere or here)
 const FREE: Activity[] = [
-  { title: "Golden (Full Song)", caption: "Huntrix – Golden (Pop Full Song)", href: "...", img: "/samples/golden.jpg", genre: "Pop", category: "Full Songs", duration: "10 minutes", level: "Beginner" },
-  { title: "Elvis Edition (Clips Game)", caption: "Rock Song Clips Game", href: "...", img: "/samples/elvis.jpg", genre: "Rock", category: "Song Clips", duration: "15 minutes", level: "Intermediate" },
+  { title: "Golden", caption: "Pop Full Song", href: "https://d1uqdf1080xgw5.cloudfront.net/MUSICVIDEOS/POP/Huntrix-Golden/golden+index.html", img: "/samples/golden.jpg", genre: "Pop", category: "Full Songs" },
+  { title: "Elvis Edition", caption: "Rock Clips Game", href: "https://d1uqdf1080xgw5.cloudfront.net/music+video+clips+game/Elvis+Edition/Elvis+index.html", img: "/samples/elvis.jpg", genre: "Rock", category: "Song Clips" },
 ];
 const PREMIUM: Activity[] = [
-  { title: "Hip Hop Storytelling", caption: "Narrative techniques & rhythm.", premium: true, img: "/samples/hiphop.jpg", genre: "Hip-Hop", category: "Song Clips", duration: "12 minutes", level: "Intermediate" },
-  { title: "Pop Pronunciation Practice", caption: "Modern pop for connected speech.", premium: true, img: "/samples/pop.jpg", genre: "Pop", category: "Song Clips", duration: "14 minutes", level: "Beginner" },
-  { title: "Country Storytelling", caption: "American country for sequencing.", premium: true, img: "/samples/country.jpg", genre: "Country", category: "Full Songs", duration: "20 minutes", level: "Intermediate" },
-  { title: "Rock Legends – Queen", caption: "Advanced listening with classics.", premium: true, img: "/samples/rock.jpg", genre: "Rock", category: "Full Songs", duration: "25 minutes", level: "Advanced" },
+  { title: "Hip Hop Storytelling", caption: "Narrative techniques & rhythm.", premium: true, img: "/samples/hiphop.jpg", genre: "Hip-Hop", category: "Song Clips" },
+  { title: "Pop Pronunciation", caption: "Modern pop for connected speech.", premium: true, img: "/samples/pop.jpg", genre: "Pop", category: "Song Clips" },
 ];
 const ALL_ACTIVITIES = [...FREE, ...PREMIUM];
 const CATEGORIES = ["All Activities", "Full Songs", "Song Clips"];
 const GENRES = ["All Genres", "Pop", "Rock", "Country", "Hip-Hop"];
 
-// Main Component
 export default function ActivitiesSection() {
   const [category, setCategory] = useState("All Activities");
   const [genre, setGenre] = useState("All Genres");
@@ -46,11 +39,26 @@ export default function ActivitiesSection() {
       <div className="max-w-7xl mx-auto">
         <header className="mb-10">
           <h1 className="text-4xl md:text-5xl font-extrabold text-white tracking-tight">Music Activities</h1>
-          <p className="text-neutral-400 mt-2">Enjoy unlimited access to all premium content with a membership.</p>
+          <p className="text-neutral-400 mt-2">Filter activities or browse the full library below.</p>
         </header>
+
         <div className="spotify-card p-4 mb-10">
-            {/* Filter UI */}
+          <div className="flex flex-col sm:flex-row gap-6">
+            <div>
+              <div className="text-neutral-400 text-sm mb-2">Category</div>
+              <div className="flex flex-wrap gap-2">
+                {CATEGORIES.map(c => <FilterButton key={c} label={c} active={category === c} onClick={() => setCategory(c)} />)}
+              </div>
+            </div>
+            <div>
+              <div className="text-neutral-400 text-sm mb-2">Genre</div>
+              <div className="flex flex-wrap gap-2">
+                {GENRES.map(g => <FilterButton key={g} label={g} active={genre === g} onClick={() => setGenre(g)} />)}
+              </div>
+            </div>
+          </div>
         </div>
+
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
           {filteredActivities.map((activity) => activity.premium ? 
             <PremiumCard key={activity.title} activity={activity} /> : 
@@ -62,32 +70,53 @@ export default function ActivitiesSection() {
   );
 }
 
-// Sub-components that were missing
+function FilterButton({ label, active, onClick }: { label: string, active: boolean, onClick: () => void }) {
+  return (
+    <button onClick={onClick} className={`px-4 py-2 rounded-lg text-sm transition ${active ? 'bg-emerald-400 text-black font-semibold' : 'bg-neutral-800 text-neutral-300 hover:bg-neutral-700'}`}>
+      {label}
+    </button>
+  );
+}
+
+function CardBase({ children, className = '' }: { children: React.ReactNode, className?: string }) {
+    return <div className={`group spotify-card overflow-hidden ${className}`}>{children}</div>;
+}
+
+function CardImage({ activity }: { activity: Activity }) {
+    return (
+        <div className="relative w-full h-44 overflow-hidden rounded-t-xl">
+            {activity.img && <Image src={activity.img} alt={activity.title} fill className="object-cover group-hover:scale-105 transition-transform duration-300" />}
+        </div>
+    );
+}
+
+function CardContent({ activity }: { activity: Activity }) {
+    return (
+        <div className="p-4">
+            <div className="text-white font-semibold">{activity.title}</div>
+            <p className="text-neutral-400 text-sm mt-1">{activity.caption}</p>
+        </div>
+    );
+}
+
 function FreeCard({ activity }: { activity: Activity }) {
   return (
-    <a href={activity.href} target="_blank" rel="noopener noreferrer" className="group spotify-card">
-      <div className="relative w-full h-44 overflow-hidden rounded-xl">
-        {activity.img && <Image src={activity.img} alt={activity.title} fill className="object-cover group-hover:scale-105 transition-transform duration-300" />}
-      </div>
-      <div className="p-4">
-        <div className="text-white font-semibold">{activity.title}</div>
-        <p className="text-neutral-400 text-sm mt-1">{activity.caption}</p>
-      </div>
+    <a href={activity.href} target="_blank" rel="noopener noreferrer">
+        <CardBase>
+            <CardImage activity={activity} />
+            <CardContent activity={activity} />
+        </CardBase>
     </a>
   );
 }
 
 function PremiumCard({ activity }: { activity: Activity }) {
   return (
-    <Link href="/login" className="group spotify-card">
-      <div className="relative w-full h-44 overflow-hidden rounded-xl">
-         {activity.img && <Image src={activity.img} alt={activity.title} fill className="object-cover group-hover:scale-105 transition-transform duration-300" />}
-         <div className="absolute top-3 left-3 px-2.5 py-1 rounded-full text-xs bg-amber-400 text-black font-semibold">Premium</div>
-      </div>
-      <div className="p-4">
-        <div className="text-white font-semibold">{activity.title}</div>
-        <p className="text-neutral-400 text-sm mt-1">{activity.caption}</p>
-      </div>
+    <Link href="/login">
+        <CardBase>
+            <CardImage activity={activity} />
+            <CardContent activity={activity} />
+        </CardBase>
     </Link>
   );
 }
