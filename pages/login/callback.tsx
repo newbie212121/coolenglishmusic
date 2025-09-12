@@ -7,11 +7,16 @@ export default function Callback() {
   const router = useRouter();
 
   useEffect(() => {
-    // This now correctly saves the token from the URL
-    auth.handleAuthCallback(); 
-    // Then, redirect to the members page
-    router.replace("/members");
+    try {
+      // This function now handles all security checks and token storage
+      auth.handleAuthCallback();
+      router.replace("/members"); // Redirect to members area on success
+    } catch (error) {
+      console.error('Authentication callback failed:', error);
+      alert('Login failed. Please try again.');
+      router.replace("/"); // Redirect to home on failure
+    }
   }, [router]);
 
-  return <div className="p-10 text-center text-white">Finishing login…</div>;
+  return <div className="p-10 text-center text-white">Finalizing login…</div>;
 }
