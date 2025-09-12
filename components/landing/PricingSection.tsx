@@ -1,54 +1,72 @@
 // components/landing/PricingSection.tsx
 import { useState } from 'react';
-import { auth } from '@/lib/auth';
-import { Check, Crown, Sparkles, Users, Music } from "lucide-react";
-import Link from 'next/link';
+import { signInWithRedirect } from 'aws-amplify/auth';
+import { getUserSub } from '@/lib/auth-helpers'; // if your @ alias isn't set, use: '../../lib/auth-helpers'
+import { Check, Crown, Sparkles } from 'lucide-react';
 
 export default function PricingSection() {
-  const [loading, setLoading] = useState('');
+  const [loading, setLoading] = useState<string>('');
+
+  // same price IDs you already had
+  const monthlyPriceId = 'price_1S6I4wEWbhWs9Y6oRzBGIh8e';
+  const annualPriceId  = 'price_1S6I5FEWbhWs9Y6oGs4CQEc2';
+
+  // your existing API endpoint
+  const CHECKOUT_API =
+    'https://vadjgqgyxc.execute-api.us-east-1.amazonaws.com/default/create-checkout-session';
+
   const handleCheckout = async (priceId: string) => {
-    setLoading(priceId);
-    const userId = auth.getUserId();
-    if (!userId) {
-      alert('Please log in or create an account to subscribe.');
-      setLoading('');
-      window.location.href = '/login'; 
-      return;
-    }
     try {
-      const response = await fetch('https://vadjgqgyxc.execute-api.us-east-1.amazonaws.com/default/create-checkout-session', {
+      setLoading(priceId);
+
+      // 1) Ensure user is logged in (Amplify)
+      const userId = await getUserSub();
+      if (!userId) {
+        await signInWithRedirect(); // sends them to Cognito login, returns to /login/callback
+        setLoading('');
+        return;
+      }
+
+      // 2) Create Stripe Checkout Session
+      const res = await fetch(CHECKOUT_API, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ priceId, userId }),
       });
-      if (!response.ok) throw new Error('API request failed');
-      const { url } = await response.json();
+
+      if (!res.ok) throw new Error('Checkout API request failed');
+      const { url } = await res.json();
+
+      // 3) Redirect to Stripe-hosted checkout
       window.location.href = url;
-    } catch (error) {
+    } catch (err) {
+      console.error(err);
       alert('Error: Could not redirect to payment page.');
       setLoading('');
     }
   };
-  
-  const monthlyPriceId = 'price_1S6I4wEWbhWs9Y6oRzBGIh8e';
-  const annualPriceId = 'price_1S6I5FEWbhWs9Y6oGs4CQEc2';
 
   return (
     <section className="py-20 px-4 sm:px-6 lg:px-8 bg-black">
       <div className="max-w-5xl mx-auto">
         <div className="text-center mb-16">
-          <h2 className="text-4xl md:text-5xl font-bold text-white mb-6">Simple, Flexible Pricing</h2>
-          <div className="w-24 h-1 bg-green-400 mx-auto rounded-full mb-6"></div>
+          <h2 className="text-4xl md:text-5xl font-bold text-white mb-6">
+            Simple, Flexible Pricing
+          </h2>
+          <div className="w-24 h-1 bg-green-400 mx-auto rounded-full mb-6" />
           <p className="text-xl text-gray-400 max-w-2xl mx-auto">
             Unlock unlimited access to our growing library of interactive music activities.
           </p>
         </div>
+
         <div className="grid md:grid-cols-2 gap-8">
           {/* Monthly Plan */}
           <div className="spotify-card rounded-2xl p-8 border border-gray-800 hover:border-gray-700 transition-all flex flex-col">
             <div className="text-center mb-8">
               <h3 className="text-2xl font-bold text-white mb-4">Monthly</h3>
-              <div className="text-5xl font-bold text-white mb-4">$2<span className="text-xl text-gray-400">/month</span></div>
+              <div className="text-5xl font-bold text-white mb-4">
+                $2<span className="text-xl text-gray-400">/month</span>
+              </div>
               <p className="text-gray-400">Perfect for trying things out.</p>
             </div>
             <div className="space-y-4 mb-8 flex-grow">
@@ -57,18 +75,28 @@ export default function PricingSection() {
               <FeatureItem>All Music Genres</FeatureItem>
               <FeatureItem>Priority Support</FeatureItem>
             </div>
-            <button onClick={() => handleCheckout(monthlyPriceId)} disabled={!!loading} className="w-full border border-gray-600 text-white hover:bg-gray-800 py-3 text-lg rounded-full disabled:opacity-50">
-              {loading === monthlyPriceId ? 'Processing...' : 'Choose Monthly'}
+            <button
+              onClick={() => handleCheckout(monthlyPriceId)}
+              disabled={!!loading}
+              className="w-full border border-gray-600 text-white hover:bg-gray-800 py-3 text-lg rounded-full disabled:opacity-50"
+            >
+              {loading === monthlyPriceId ? 'Processing…' : 'Choose Monthly'}
             </button>
           </div>
+
           {/* Annual Plan */}
           <div className="spotify-card rounded-2xl p-8 border-2 border-green-400 relative hover:border-green-300 transition-all flex flex-col">
             <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
-              <span className="bg-green-400 text-black px-4 py-1 rounded-full text-sm font-semibold flex items-center"><Sparkles className="w-4 h-4 mr-1" />Best Value</span>
+              <span className="bg-green-400 text-black px-4 py-1 rounded-full text-sm font-semibold flex items-center">
+                <Sparkles className="w-4 h-4 mr-1" />
+                Best Value
+              </span>
             </div>
             <div className="text-center mb-8">
               <h3 className="text-2xl font-bold text-white mb-4">Annual</h3>
-              <div className="text-5xl font-bold text-white mb-2">$15<span className="text-xl text-gray-400">/year</span></div>
+              <div className="text-5xl font-bold text-white mb-2">
+                $15<span className="text-xl text-gray-400">/year</span>
+              </div>
               <p className="text-green-400 font-semibold mb-2">Save 37%</p>
               <p className="text-gray-400">Just $1.25 per month</p>
             </div>
@@ -78,9 +106,13 @@ export default function PricingSection() {
               <FeatureItem>Early Access to New Features</FeatureItem>
               <FeatureItem>Downloadable Resources</FeatureItem>
             </div>
-            <button onClick={() => handleCheckout(annualPriceId)} disabled={!!loading} className="w-full spotify-green spotify-green-hover text-black font-semibold py-3 text-lg rounded-full disabled:opacity-50">
+            <button
+              onClick={() => handleCheckout(annualPriceId)}
+              disabled={!!loading}
+              className="w-full spotify-green spotify-green-hover text-black font-semibold py-3 text-lg rounded-full disabled:opacity-50"
+            >
               <Crown className="w-5 h-5 mr-2 inline" />
-              {loading === annualPriceId ? 'Processing...' : 'Go Annual'}
+              {loading === annualPriceId ? 'Processing…' : 'Go Annual'}
             </button>
           </div>
         </div>
