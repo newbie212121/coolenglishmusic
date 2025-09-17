@@ -2,7 +2,9 @@
 import { useState } from 'react';
 import { Check, Crown, Sparkles } from 'lucide-react';
 
-const API_URL = 'https://vadjgqgyxc.execute-api.us-east-1.amazonaws.com/default/create-checkout-session';
+// Use the env var you already set in Amplify
+const API_URL = `${process.env.NEXT_PUBLIC_API_BASE!.replace(/\/+$/, '')}/create-checkout-session`;
+
 
 // Your Stripe Price IDs (test mode)
 const MONTHLY_PRICE = 'price_1S6I4wEWbhWs9Y6oRzBGIh8e'; // update if needed
