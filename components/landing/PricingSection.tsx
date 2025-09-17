@@ -2,33 +2,44 @@
 import { useState } from 'react';
 import { Check, Crown, Sparkles } from 'lucide-react';
 
-// Use the env var you already set in Amplify
-const API_URL = `${process.env.NEXT_PUBLIC_API_BASE!.replace(/\/+$/, '')}/create-checkout-session`;
+// Build a safe API URL once
+const BASE = (process.env.NEXT_PUBLIC_API_BASE || '').replace(/\/+$/, '');
+const API_URL = BASE ? `${BASE}/create-checkout-session` : '';
 
-
-// Your Stripe Price IDs (test mode)
-const MONTHLY_PRICE = 'price_1S6I4wEWbhWs9Y6oRzBGIh8e'; // update if needed
-const ANNUAL_PRICE  = 'price_1S6I5FEWbhWs9Y6oGs4CQEc2'; // update if needed
+const MONTHLY_PRICE = 'price_1S6I4wEWbhWs9Y6oRzBGIh8e'; // test price
+const ANNUAL_PRICE  = 'price_1S6I5FEWbhWs9Y6oGs4CQEc2'; // test price
 
 export default function PricingSection() {
   const [loading, setLoading] = useState<string>('');
 
   const go = async (priceId: string) => {
     try {
+      if (!API_URL) {
+        throw new Error('API base URL is not configured.');
+      }
       setLoading(priceId);
 
       const res = await fetch(API_URL, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' }, // ❗ no Authorization header
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ priceId }),
-        // mode: 'cors' // not required, default is fine
       });
 
-      const data = await res.json();
-      if (!res.ok || !data?.url) throw new Error(data?.message || 'Checkout API error');
+      // Read text first in case it's not JSON
+      const text = await res.text();
+      let data: any = undefined;
+      try { data = JSON.parse(text); } catch {}
 
+      if (!res.ok || !data?.url) {
+        // Bubble up the best message we have
+        const msg = data?.message || text || `Checkout API error (HTTP ${res.status})`;
+        throw new Error(msg);
+      }
+
+      // Success → redirect to Stripe
       window.location.href = data.url;
     } catch (e: any) {
+      console.error('[pricing] checkout error:', e);
       alert(e?.message || 'Could not redirect to payment page.');
       setLoading('');
     }
