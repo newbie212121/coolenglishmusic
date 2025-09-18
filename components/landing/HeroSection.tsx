@@ -20,7 +20,8 @@ export default function HeroSection() {
             Interactive music activities that make English learning engaging and effective. Perfect for teachers and students of all levels.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-20">
-            <Link href="/members" className="flex items-center spotify-green spotify-green-hover text-black font-semibold px-8 py-4 text-lg rounded-full transition-transform">
+            {/* --- THIS LINE IS THE FIX --- */}
+            <Link href="/activities" className="flex items-center spotify-green spotify-green-hover text-black font-semibold px-8 py-4 text-lg rounded-full transition-transform">
               <Play className="w-5 h-5 mr-2" />
               Try Free Activities
             </Link>
