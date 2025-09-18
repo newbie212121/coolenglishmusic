@@ -3,8 +3,9 @@ import "@/styles/globals.css";
 import type { AppProps } from "next/app";
 import { Amplify } from "aws-amplify";
 import { AuthProvider } from "../context/AuthContext";
+import NavBar from "../components/landing/NavBar"; // ← mount NavBar globally
 
-// ✅ Configure Amplify directly from env vars (no JSON file needed)
+// Configure Amplify from env vars (no JSON file required)
 Amplify.configure({
   Auth: {
     Cognito: {
@@ -12,10 +13,10 @@ Amplify.configure({
       userPoolClientId: process.env.NEXT_PUBLIC_COGNITO_APP_CLIENT_ID!,
       loginWith: {
         oauth: {
-          domain: process.env.NEXT_PUBLIC_COGNITO_DOMAIN!, // e.g. 7cjtqru...auth.us-east-1.amazoncognito.com
+          domain: process.env.NEXT_PUBLIC_COGNITO_DOMAIN!,
           scopes: ["email", "openid", "profile"],
-          redirectSignIn: [process.env.NEXT_PUBLIC_REDIRECT_SIGNIN!],   // e.g. https://coolenglishmusic.com/login/callback
-          redirectSignOut: [process.env.NEXT_PUBLIC_REDIRECT_SIGNOUT!], // e.g. https://coolenglishmusic.com/logout
+          redirectSignIn: [process.env.NEXT_PUBLIC_REDIRECT_SIGNIN!],
+          redirectSignOut: [process.env.NEXT_PUBLIC_REDIRECT_SIGNOUT!],
           responseType: "code",
         },
       },
@@ -26,6 +27,7 @@ Amplify.configure({
 export default function App({ Component, pageProps }: AppProps) {
   return (
     <AuthProvider>
+      <NavBar />
       <Component {...pageProps} />
     </AuthProvider>
   );
