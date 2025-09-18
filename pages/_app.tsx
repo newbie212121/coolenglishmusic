@@ -2,32 +2,29 @@
 import "@/styles/globals.css";
 import type { AppProps } from "next/app";
 import { Amplify } from "aws-amplify";
-import { AuthProvider } from "../context/AuthContext";
-import NavBar from "../components/landing/NavBar"; // ← mount NavBar globally
 
-// Configure Amplify from env vars (no JSON file required)
-Amplify.configure({
-  Auth: {
-    Cognito: {
-      userPoolId: process.env.NEXT_PUBLIC_COGNITO_USER_POOL_ID!,
-      userPoolClientId: process.env.NEXT_PUBLIC_COGNITO_APP_CLIENT_ID!,
-      loginWith: {
-        oauth: {
-          domain: process.env.NEXT_PUBLIC_COGNITO_DOMAIN!,
-          scopes: ["email", "openid", "profile"],
-          redirectSignIn: [process.env.NEXT_PUBLIC_REDIRECT_SIGNIN!],
-          redirectSignOut: [process.env.NEXT_PUBLIC_REDIRECT_SIGNOUT!],
-          responseType: "code",
-        },
-      },
-    },
-  },
-});
+// Try to load the Amplify config from common locations so it works in all environments
+let amplifyConfig: any = {};
+try {
+  // If your file is at /src/amplifyconfiguration.json (common with Amplify Gen2)
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  amplifyConfig = require("../src/amplifyconfiguration.json");
+} catch {}
+if (!amplifyConfig || Object.keys(amplifyConfig).length === 0) {
+  try {
+    // If your file is at /amplifyconfiguration.json (project root)
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    amplifyConfig = require("../amplifyconfiguration.json");
+  } catch {}
+}
+
+Amplify.configure(amplifyConfig);
+
+import { AuthProvider } from "@/context/AuthContext";
 
 export default function App({ Component, pageProps }: AppProps) {
   return (
     <AuthProvider>
-      <NavBar />
       <Component {...pageProps} />
     </AuthProvider>
   );
