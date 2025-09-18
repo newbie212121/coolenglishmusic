@@ -3,107 +3,71 @@
 import { useEffect, useRef, useState } from 'react';
 import { fetchAuthSession } from 'aws-amplify/auth';
 
-// Build a safe API base
 const BASE = (process.env.NEXT_PUBLIC_API_BASE || '').replace(/\/+$/, '');
 const STATUS_URL = `${BASE}/members/status`;
-const PORTAL_URL = `${BASE}/billing/portal`;
 
-export default function MembersPage() {
+export default function Members() {
   const [loading, setLoading] = useState(true);
   const [active, setActive] = useState<boolean | null>(null);
-  const [busy, setBusy] = useState(false);
-  const redirected = useRef(false); // prevent redirect loops
+  const redirected = useRef(false); // prevent redirect loop
 
-  // Get the current ID token (JWT)
-  const getIdToken = async (): Promise<string | null> => {
-    try {
-      const session = await fetchAuthSession();
-      const idToken = session.tokens?.idToken?.toString() || null;
-      return idToken;
-    } catch {
-      return null;
-    }
+  const redirectToLogin = () => {
+    if (redirected.current) return;
+    redirected.current = true;
+    const next = encodeURIComponent('/members');
+    window.location.href = `/login?next=${next}`;
   };
 
   useEffect(() => {
-    (async () => {
-      // 1) ensure we have a token
-      const idToken = await getIdToken();
-      if (!idToken) {
-        if (!redirected.current) {
-          redirected.current = true;
-          window.location.href = `/login?next=${encodeURIComponent('/members')}`;
-        }
-        return;
-      }
+    let cancelled = false;
 
+    (async () => {
       try {
-        // 2) call the protected status endpoint with **Bearer** prefix
+        // 1) get a fresh ID token (Amplify will refresh if needed)
+        const session = await fetchAuthSession();
+        const idToken = session.tokens?.idToken?.toString();
+
+        if (!idToken) {
+          redirectToLogin();
+          return;
+        }
+
+        // 2) call status once
         const res = await fetch(STATUS_URL, {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${idToken}`,
+            // API Gateway JWT authorizer reads the raw token from this header
+            Authorization: idToken,
           },
         });
 
-        // If the authorizer rejects the token, go to login once
-        if (res.status === 401 || res.status === 403) {
-          if (!redirected.current) {
-            redirected.current = true;
-            window.location.href = `/login?next=${encodeURIComponent('/members')}`;
-          }
+        if (res.status === 401) {
+          redirectToLogin();
+          return;
+        }
+
+        if (!res.ok) {
+          // Treat unexpected errors as not-active but do not loop
+          console.error('[members] status error:', res.status);
+          if (!cancelled) setActive(false);
           return;
         }
 
         const data = await res.json().catch(() => ({} as any));
-        setActive(!!data.active);
+        if (!cancelled) setActive(!!data.active);
       } catch (e) {
-        console.error('[members] status error:', e);
-        setActive(false);
+        console.error('[members] exception:', e);
+        if (!cancelled) setActive(false);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     })();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
-
-  // Open Stripe Billing Portal
-  const openBillingPortal = async () => {
-    setBusy(true);
-    try {
-      const idToken = await getIdToken();
-      if (!idToken) {
-        window.location.href = `/login?next=${encodeURIComponent('/members')}`;
-        return;
-      }
-
-      const res = await fetch(PORTAL_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${idToken}`,
-        },
-      });
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        alert(err?.message || 'Could not open billing portal.');
-        return;
-      }
-
-      const data = await res.json();
-      if (data?.url) {
-        window.location.href = data.url;
-      } else {
-        alert('No portal URL returned.');
-      }
-    } catch (e) {
-      console.error('[members] portal error:', e);
-      alert('Could not open billing portal.');
-    } finally {
-      setBusy(false);
-    }
-  };
 
   if (loading) {
     return <div className="p-8 text-white">Checking membership…</div>;
@@ -132,14 +96,7 @@ export default function MembersPage() {
       <p className="text-gray-300 mb-6">
         Your subscription is active. Enjoy the activities 🎵
       </p>
-
-      <button
-        onClick={openBillingPortal}
-        disabled={busy}
-        className="px-6 py-3 rounded-full bg-gray-800 text-white hover:bg-gray-700 disabled:opacity-60"
-      >
-        {busy ? 'Opening…' : 'Manage Billing'}
-      </button>
+      {/* render activities grid here */}
     </div>
   );
 }
