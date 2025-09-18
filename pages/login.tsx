@@ -15,7 +15,7 @@ export default function LoginPage() {
       const next = (router.query.next as string) || "/activities";
       router.replace(next);
     } else {
-      // store the intended page for the callback
+      // store the intended page for the callback to read
       const next = (router.query.next as string) || "/activities";
       sessionStorage.setItem("nextAfterLogin", next);
     }
