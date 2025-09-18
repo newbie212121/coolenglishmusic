@@ -1,69 +1,89 @@
-// components/landing/NavBar.tsx
+// pages/login/callback.tsx
 "use client";
 
-import Link from "next/link";
-import { useAuth } from "@/context/AuthContext";
+import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/router";
+import { fetchAuthSession, getCurrentUser } from "aws-amplify/auth";
+import { amplifyConfig } from "@/lib/amplify-config";
 
-export default function NavBar() {
-  const { isLoading, isAuthenticated, isMember, logout } = useAuth();
+export default function LoginCallback() {
+  const router = useRouter();
+  const [status, setStatus] = useState("Completing sign-in…");
+  const [error, setError] = useState<string | null>(null);
+  const tried = useRef(false);
 
-  const handleLogin = () => {
-    const next = encodeURIComponent(window.location.pathname + window.location.search);
-    window.location.assign(`/login?next=${next}`);
+  const getNext = () => {
+    const fromParam = (router.query.next as string) || "";
+    const fromStorage = sessionStorage.getItem("nextAfterLogin") || "";
+    const next = fromParam || fromStorage || "/activities";
+    sessionStorage.removeItem("nextAfterLogin");
+    return next;
   };
 
-  const handleLogout = async () => {
-    try {
-      await logout();               // <- use context (not signOut)
-    } finally {
-      window.location.assign("/");  // hard reload for clean UI
-    }
-  };
+  useEffect(() => {
+    if (!router.isReady || tried.current) return;
+    tried.current = true;
 
-  const openPortal = () => alert("Billing portal coming soon!");
+    (async () => {
+      try {
+        setStatus("Finalizing session…");
+        await fetchAuthSession().catch(() => {});
 
+        // Poll up to ~8s for ID token
+        const start = Date.now();
+        let idToken: string | null = null;
+        while (Date.now() - start < 8000) {
+          const s = await fetchAuthSession().catch(() => null);
+          idToken = s?.tokens?.idToken?.toString() || null;
+          if (idToken) break;
+          await new Promise(r => setTimeout(r, 250));
+        }
+
+        if (!idToken) {
+          setError("We couldn’t finish sign-in. Likely a redirect URL mismatch or wrong domain.");
+          setStatus("");
+          return;
+        }
+
+        await getCurrentUser().catch(() => {});
+        setStatus("All set — taking you back…");
+        const next = getNext();
+        window.location.replace(next);
+      } catch (e) {
+        setError("Unexpected sign-in error. Please try again.");
+        setStatus("");
+      }
+    })();
+  }, [router.isReady, router]);
+
+  // Optional debug info (open /login/callback?debug=1)
+  const showDebug = router.query.debug === "1";
+  const oauth = (amplifyConfig as any)?.Auth?.Cognito?.loginWith?.oauth || {};
   return (
-    <nav className="w-full bg-black/90 border-b border-white/5 sticky top-0 z-40">
-      <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-8">
-          <Link href="/" className="text-white font-bold text-lg">
-            <span className="text-green-400">Cool</span>EnglishMusic
-          </Link>
-          <div className="hidden sm:flex items-center gap-6">
-            <Link href="/" className="text-gray-300 hover:text-white">Home</Link>
-            <Link href="/activities" className="text-gray-300 hover:text-white">Activities</Link>
-            <Link href="/pricing" className="text-gray-300 hover:text-white">Pricing</Link>
-          </div>
-        </div>
+    <div className="min-h-screen flex items-center justify-center bg-black text-white">
+      <div className="text-center space-y-3">
+        {status && <div>{status}</div>}
+        {error && (
+          <>
+            <div className="text-red-400">{error}</div>
+            <a
+              href={`/login?next=${encodeURIComponent(getNext())}`}
+              className="inline-block mt-2 px-4 py-2 rounded-full bg-green-500 text-black font-semibold hover:bg-green-400"
+            >
+              Try again
+            </a>
+          </>
+        )}
 
-        <div className="flex items-center gap-3">
-          {isLoading ? (
-            <div className="h-8 w-24 rounded-full bg-gray-700 animate-pulse" />
-          ) : !isAuthenticated ? (
-            <button onClick={handleLogin} className="px-4 py-2 rounded-full bg-green-500 text-black font-semibold hover:bg-green-400">
-              Log in
-            </button>
-          ) : isMember ? (
-            <>
-              <button onClick={openPortal} className="px-4 py-2 rounded-full bg-emerald-600 text-white hover:bg-emerald-500">
-                Dashboard
-              </button>
-              <button onClick={handleLogout} className="px-4 py-2 rounded-full bg-gray-700 text-white hover:bg-gray-600">
-                Logout
-              </button>
-            </>
-          ) : (
-            <>
-              <button onClick={() => window.location.assign("/pricing")} className="px-4 py-2 rounded-full bg-green-500 text-black font-semibold hover:bg-green-400">
-                Upgrade to Premium
-              </button>
-              <button onClick={handleLogout} className="px-4 py-2 rounded-full bg-gray-700 text-white hover:bg-gray-600">
-                Logout
-              </button>
-            </>
-          )}
-        </div>
+        {showDebug && (
+          <div className="mt-6 text-left text-sm max-w-xl mx-auto p-3 rounded bg-white/5">
+            <div><b>Domain</b>: {oauth.domain || "(missing)"} </div>
+            <div><b>redirectSignIn</b>: {(oauth.redirectSignIn || []).join(", ")}</div>
+            <div><b>redirectSignOut</b>: {(oauth.redirectSignOut || []).join(", ")}</div>
+            <div><b>URL</b>: {typeof window !== "undefined" ? window.location.href : ""}</div>
+          </div>
+        )}
       </div>
-    </nav>
+    </div>
   );
 }
