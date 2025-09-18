@@ -1,27 +1,16 @@
 // pages/login/callback.tsx
-import { useEffect } from 'react';
-import { useRouter } from 'next/router';
-import { fetchAuthSession, getCurrentUser } from 'aws-amplify/auth';
+"use client";
 
-export default function Callback() {
+import { useEffect } from "react";
+import { useRouter } from "next/router";
+
+export default function LoginCallback() {
   const router = useRouter();
 
   useEffect(() => {
-    (async () => {
-      try {
-        await fetchAuthSession();        // completes code->token exchange and hydrates session
-        await getCurrentUser().catch(() => null);
-      } catch (err) {
-        console.error('Auth callback error:', err);
-      } finally {
-        router.replace('/members');
-      }
-    })();
+    const next = (router.query.next as string) || "/activities";
+    router.replace(next);
   }, [router]);
 
-  return (
-    <main className="min-h-[50vh] grid place-items-center text-neutral-200">
-      Completing sign-in…
-    </main>
-  );
+  return <div className="p-8 text-white">Completing sign in…</div>;
 }

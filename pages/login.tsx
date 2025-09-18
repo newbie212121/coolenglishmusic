@@ -1,34 +1,32 @@
 // pages/login.tsx
+"use client";
+
 import { useEffect } from "react";
 import { signInWithRedirect } from "aws-amplify/auth";
 import { useRouter } from "next/router";
 import { useAuth } from "@/context/AuthContext";
 
-export default function Login() {
+export default function LoginPage() {
   const router = useRouter();
   const { isAuthenticated, isLoading } = useAuth();
 
   useEffect(() => {
     if (!isLoading && isAuthenticated) {
-      router.replace("/activities");
+      const next = (router.query.next as string) || "/activities";
+      router.replace(next);
     }
   }, [isAuthenticated, isLoading, router]);
 
   const handleLogin = async () => {
-    // Optionally carry forward the "next" param
-    const next = (router.query.next as string) || "/activities";
-    await signInWithRedirect(); // your Cognito Hosted UI will return to your callback
-    // When you land back, AuthContext will flip and NavBar will update.
+    await signInWithRedirect(); // uses your Amplify Hosted UI config
   };
 
-  if (isLoading) {
-    return <div className="min-h-screen bg-gray-900 text-white p-8">Loading…</div>;
-  }
+  if (isLoading) return <div className="p-8 text-white">Loading…</div>;
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
-      <div className="max-w-lg w-full text-center">
-        <h1 className="text-4xl font-bold mb-4">Log In to Your Account</h1>
+    <main className="min-h-[60vh] grid place-items-center bg-[#0c1320] text-white">
+      <div className="text-center">
+        <h1 className="text-4xl font-bold mb-3">Log In to Your Account</h1>
         <p className="text-gray-400 mb-8">Access your premium music activities.</p>
         <button
           onClick={handleLogin}
@@ -37,6 +35,6 @@ export default function Login() {
           Log In
         </button>
       </div>
-    </div>
+    </main>
   );
 }
