@@ -1,64 +1,63 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { fetchAuthSession } from 'aws-amplify/auth';
 
+// Build a safe API base
 const BASE = (process.env.NEXT_PUBLIC_API_BASE || '').replace(/\/+$/, '');
 const STATUS_URL = `${BASE}/members/status`;
 const PORTAL_URL = `${BASE}/billing/portal`;
 
-export default function Members() {
+export default function MembersPage() {
   const [loading, setLoading] = useState(true);
   const [active, setActive] = useState<boolean | null>(null);
   const [busy, setBusy] = useState(false);
+  const redirected = useRef(false); // prevent redirect loops
 
-  const toLogin = () => {
-    window.location.href = `/login?next=${encodeURIComponent('/members')}`;
-  };
-
+  // Get the current ID token (JWT)
   const getIdToken = async (): Promise<string | null> => {
     try {
       const session = await fetchAuthSession();
       const idToken = session.tokens?.idToken?.toString() || null;
-      if (!idToken) {
-        toLogin();
-        return null;
-      }
       return idToken;
     } catch {
-      toLogin();
       return null;
     }
   };
 
   useEffect(() => {
     (async () => {
+      // 1) ensure we have a token
       const idToken = await getIdToken();
-      if (!idToken) return;
+      if (!idToken) {
+        if (!redirected.current) {
+          redirected.current = true;
+          window.location.href = `/login?next=${encodeURIComponent('/members')}`;
+        }
+        return;
+      }
 
       try {
+        // 2) call the protected status endpoint with **Bearer** prefix
         const res = await fetch(STATUS_URL, {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
-            // IMPORTANT: Bearer format so API Gateway JWT authorizer accepts it
             Authorization: `Bearer ${idToken}`,
           },
         });
 
-        if (res.status === 401) {
-          // token rejected → go log in
-          toLogin();
+        // If the authorizer rejects the token, go to login once
+        if (res.status === 401 || res.status === 403) {
+          if (!redirected.current) {
+            redirected.current = true;
+            window.location.href = `/login?next=${encodeURIComponent('/members')}`;
+          }
           return;
         }
 
-        if (!res.ok) {
-          console.error('[members] status non-OK:', res.status);
-          setActive(false);
-        } else {
-          const data = await res.json().catch(() => ({} as any));
-          setActive(!!data.active);
-        }
+        const data = await res.json().catch(() => ({} as any));
+        setActive(!!data.active);
       } catch (e) {
         console.error('[members] status error:', e);
         setActive(false);
@@ -68,11 +67,15 @@ export default function Members() {
     })();
   }, []);
 
+  // Open Stripe Billing Portal
   const openBillingPortal = async () => {
     setBusy(true);
     try {
       const idToken = await getIdToken();
-      if (!idToken) return;
+      if (!idToken) {
+        window.location.href = `/login?next=${encodeURIComponent('/members')}`;
+        return;
+      }
 
       const res = await fetch(PORTAL_URL, {
         method: 'POST',
@@ -89,8 +92,11 @@ export default function Members() {
       }
 
       const data = await res.json();
-      if (data?.url) window.location.href = data.url;
-      else alert('No portal URL returned.');
+      if (data?.url) {
+        window.location.href = data.url;
+      } else {
+        alert('No portal URL returned.');
+      }
     } catch (e) {
       console.error('[members] portal error:', e);
       alert('Could not open billing portal.');
@@ -99,7 +105,9 @@ export default function Members() {
     }
   };
 
-  if (loading) return <div className="p-8 text-white">Checking membership…</div>;
+  if (loading) {
+    return <div className="p-8 text-white">Checking membership…</div>;
+  }
 
   if (!active) {
     return (
