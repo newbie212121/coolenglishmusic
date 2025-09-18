@@ -1,6 +1,6 @@
 // components/NavBar.tsx
 import Link from 'next/link';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '@/context/AuthContext';
 import { signOut } from 'aws-amplify/auth';
 import { useRouter } from 'next/router';
 

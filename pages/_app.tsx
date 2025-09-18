@@ -1,22 +1,16 @@
 // pages/_app.tsx
+import "@/styles/globals.css";
+import type { AppProps } from "next/app";
+import { Amplify } from "aws-amplify";
+import amplifyconfig from "../src/amplifyconfiguration.json";
+import { AuthProvider } from "@/context/AuthContext";
 
-import { configureAmplify } from '@/lib/amplify-config';
-configureAmplify();
-
-import type { AppProps } from 'next/app';
-import "../styles/globals.css";
-import NavBar from "../components/NavBar";
-import Footer from "../components/Footer";
-import { Inter } from "next/font/google";
-
-const inter = Inter({ subsets: ["latin"] });
+Amplify.configure(amplifyconfig);
 
 export default function App({ Component, pageProps }: AppProps) {
   return (
-    <div className={inter.className}>
-      <NavBar />
+    <AuthProvider>
       <Component {...pageProps} />
-      <Footer />
-    </div>
+    </AuthProvider>
   );
 }

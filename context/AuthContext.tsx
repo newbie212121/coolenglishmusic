@@ -1,78 +1,73 @@
 // context/AuthContext.tsx
-import { createContext, useContext, useEffect, useMemo, useState, ReactNode } from 'react';
-import { fetchAuthSession, getCurrentUser } from 'aws-amplify/auth';
-
-// Your deployed API base (already used elsewhere)
-const BASE = (process.env.NEXT_PUBLIC_API_BASE || '').replace(/\/+$/, '');
-const STATUS_URL = `${BASE}/members/status`;
+import { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import { fetchAuthSession, getCurrentUser } from "aws-amplify/auth";
 
 type AuthCtx = {
   isAuthenticated: boolean;
   isMember: boolean;
   isLoading: boolean;
-  userEmail?: string | null;
-  refresh: () => Promise<void>;
+  user: { username?: string } | null;
 };
 
-const Ctx = createContext<AuthCtx | undefined>(undefined);
+const AuthContext = createContext<AuthCtx | undefined>(undefined);
+
+// Build API base safely
+const BASE = (process.env.NEXT_PUBLIC_API_BASE || "").replace(/\/+$/, "");
+const STATUS_URL = `${BASE}/members/status`;
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [isLoading, setLoading] = useState(true);
-  const [isMember, setMember]   = useState(false);
-  const [userEmail, setEmail]   = useState<string | null>(null);
-  const [isAuthenticated, setAuthed] = useState(false);
-
-  const check = async () => {
-    try {
-      // Are we signed in?
-      const user = await getCurrentUser().catch(() => null);
-      setAuthed(!!user);
-      setEmail(user?.signInDetails?.loginId ?? null);
-
-      // If signed in, grab ID token + ask your /members/status
-      if (user) {
-        const session = await fetchAuthSession();
-        const idToken = session.tokens?.idToken?.toString();
-        if (idToken) {
-          const res = await fetch(STATUS_URL, {
-            method: 'GET',
-            headers: {
-              'Content-Type': 'application/json',
-              // IMPORTANT: your API Gateway authorizer reads the raw JWT (no "Bearer ")
-              Authorization: idToken,
-            },
-          });
-          setMember(res.ok && (await res.json()).active === true);
-        } else {
-          setMember(false);
-        }
-      } else {
-        setMember(false);
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
+  const [user, setUser] = useState<{ username?: string } | null>(null);
+  const [isMember, setIsMember] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    check();
-    // No deps -> run once on app mount. You can add a Hub listener later if desired.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    (async () => {
+      try {
+        // Is there a signed-in user?
+        const u = await getCurrentUser().catch(() => null);
+        setUser(u as any);
+
+        // If signed in, check membership
+        const session = await fetchAuthSession().catch(() => null);
+        const idToken = session?.tokens?.idToken?.toString();
+        if (idToken) {
+          const res = await fetch(STATUS_URL, {
+            headers: { Authorization: idToken }, // your API expects raw token (no Bearer)
+          });
+          if (res.ok) {
+            const data = await res.json().catch(() => ({}));
+            setIsMember(!!data.active);
+          } else {
+            setIsMember(false);
+          }
+        } else {
+          setIsMember(false);
+        }
+      } catch {
+        setUser(null);
+        setIsMember(false);
+      } finally {
+        setIsLoading(false);
+      }
+    })();
   }, []);
 
-  const value = useMemo<AuthCtx>(() => ({
-    isAuthenticated,
-    isMember,
-    isLoading,
-    userEmail,
-    refresh: check,
-  }), [isAuthenticated, isMember, isLoading, userEmail]);
-
-  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
+  return (
+    <AuthContext.Provider
+      value={{
+        isAuthenticated: !!user,
+        isMember,
+        isLoading,
+        user,
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
+  );
 }
 
 export function useAuth() {
-  const ctx = useContext(Ctx);
-  if (!ctx) throw new Error('useAuth must be used inside <AuthProvider>');
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error("useAuth must be used within <AuthProvider>");
   return ctx;
 }
