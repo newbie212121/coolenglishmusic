@@ -18,12 +18,12 @@ export default function Members() {
       const session = await fetchAuthSession();
       const idToken = session.tokens?.idToken?.toString() || null;
       if (!idToken) {
-        window.location.href = '/login';
+        window.location.href = `/login?next=${encodeURIComponent('/members')}`;
         return null;
       }
       return idToken;
     } catch {
-      window.location.href = '/login';
+      window.location.href = `/login?next=${encodeURIComponent('/members')}`;
       return null;
     }
   };
@@ -38,13 +38,12 @@ export default function Members() {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
-            // Your API Gateway JWT authorizer is reading this header
-            Authorization: idToken, // (works with your setup; no Bearer prefix)
+            Authorization: idToken, // works with your JWT authorizer
           },
         });
 
         if (res.status === 401) {
-          window.location.href = '/login';
+          window.location.href = `/login?next=${encodeURIComponent('/members')}`;
           return;
         }
 
