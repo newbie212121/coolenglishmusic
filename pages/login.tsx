@@ -1,44 +1,89 @@
-// pages/login.tsx
+// pages/login/callback.tsx
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/router";
-import { signInWithRedirect } from "aws-amplify/auth";
-import { useAuth } from "@/context/AuthContext";
+import { fetchAuthSession, getCurrentUser } from "aws-amplify/auth";
+import { amplifyConfig } from "@/lib/amplify-config";
 
-/**
- * When you land here:
- *  - If already signed in -> bounce to ?next=... (or /activities)
- *  - Otherwise -> store next in sessionStorage and start Hosted UI
- */
-export default function LoginPage() {
+export default function LoginCallback() {
   const router = useRouter();
-  const { isAuthenticated, isLoading } = useAuth();
+  const [status, setStatus] = useState("Completing sign-in…");
+  const [error, setError] = useState<string | null>(null);
+  const tried = useRef(false);
+
+  const getNext = () => {
+    const fromParam = (router.query.next as string) || "";
+    const fromStorage = sessionStorage.getItem("nextAfterLogin") || "";
+    const next = fromParam || fromStorage || "/activities";
+    sessionStorage.removeItem("nextAfterLogin");
+    return next;
+  };
 
   useEffect(() => {
-  if (!router.isReady) return;
-  const next = (router.query.next as string) || "/activities";
+    if (!router.isReady || tried.current) return;
+    tried.current = true;
 
-    // If we already have a session, just go where the user wanted.
-    if (!isLoading && isAuthenticated) {
-      router.replace(next);
-      return;
-    }
+    (async () => {
+      try {
+        setStatus("Finalizing session…");
+        await fetchAuthSession().catch(() => {});
 
-    // If not logged in, kick off Hosted UI as soon as we can.
-    if (!isLoading && !isAuthenticated) {
-      // keep a local fallback in case ?next isn’t present after the round-trip
-      sessionStorage.setItem("nextAfterLogin", next);
-      signInWithRedirect().catch((e) => {
-        console.error("signInWithRedirect failed", e);
-      });
-    }
-  }, [isAuthenticated, isLoading, router]);
+        // Poll up to ~8s for ID token
+        const start = Date.now();
+        let idToken: string | null = null;
+        while (Date.now() - start < 8000) {
+          const s = await fetchAuthSession().catch(() => null);
+          idToken = s?.tokens?.idToken?.toString() || null;
+          if (idToken) break;
+          await new Promise(r => setTimeout(r, 250));
+        }
 
-  // We never show a second “Login” button anymore.
+        if (!idToken) {
+          setError("We couldn’t finish sign-in. Likely a redirect URL mismatch or wrong domain.");
+          setStatus("");
+          return;
+        }
+
+        await getCurrentUser().catch(() => {});
+        setStatus("All set — taking you back…");
+        const next = getNext();
+        window.location.replace(next);
+      } catch (e) {
+        setError("Unexpected sign-in error. Please try again.");
+        setStatus("");
+      }
+    })();
+  }, [router.isReady, router]);
+
+  // DEBUG PANEL: shows what config the page is using (only when ?debug=1 is present)
+  const showDebug = router.query.debug === "1";
+  const oauth = (amplifyConfig as any)?.Auth?.Cognito?.loginWith?.oauth || {};
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#0d1620] text-white">
-      <div>Redirecting to secure sign-in…</div>
+    <div className="min-h-screen flex items-center justify-center bg-black text-white">
+      <div className="text-center space-y-3">
+        {status && <div>{status}</div>}
+        {error && (
+          <>
+            <div className="text-red-400">{error}</div>
+            <a
+              href={`/login?next=${encodeURIComponent(getNext())}`}
+              className="inline-block mt-2 px-4 py-2 rounded-full bg-green-500 text-black font-semibold hover:bg-green-400"
+            >
+              Try again
+            </a>
+          </>
+        )}
+
+        {showDebug && (
+          <div className="mt-6 text-left text-sm max-w-xl mx-auto p-3 rounded bg-white/5">
+            <div><b>Domain</b>: {oauth.domain || "(missing)"} </div>
+            <div><b>redirectSignIn</b>: {(oauth.redirectSignIn || []).join(", ")}</div>
+            <div><b>redirectSignOut</b>: {(oauth.redirectSignOut || []).join(", ")}</div>
+            <div><b>URL</b>: {typeof window !== "undefined" ? window.location.href : ""}</div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

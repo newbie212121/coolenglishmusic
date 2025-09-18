@@ -1,4 +1,3 @@
-// components/landing/NavBar.tsx
 "use client";
 
 import Link from "next/link";
@@ -45,13 +44,21 @@ export default function NavBar() {
             </button>
           ) : isMember ? (
             <>
-              <button onClick={openPortal} className="px-4 py-2 rounded-full bg-emerald-600 text-white hover:bg-emerald-500">Dashboard</button>
-              <button onClick={handleLogout} className="px-4 py-2 rounded-full bg-gray-700 text-white hover:bg-gray-600">Logout</button>
+              <button onClick={openPortal} className="px-4 py-2 rounded-full bg-emerald-600 text-white hover:bg-emerald-500">
+                Dashboard
+              </button>
+              <button onClick={handleLogout} className="px-4 py-2 rounded-full bg-gray-700 text-white hover:bg-gray-600">
+                Logout
+              </button>
             </>
           ) : (
             <>
-              <button onClick={() => window.location.assign("/pricing")} className="px-4 py-2 rounded-full bg-green-500 text-black font-semibold hover:bg-green-400">Upgrade to Premium</button>
-              <button onClick={handleLogout} className="px-4 py-2 rounded-full bg-gray-700 text-white hover:bg-gray-600">Logout</button>
+              <button onClick={() => window.location.assign("/pricing")} className="px-4 py-2 rounded-full bg-green-500 text-black font-semibold hover:bg-green-400">
+                Upgrade to Premium
+              </button>
+              <button onClick={handleLogout} className="px-4 py-2 rounded-full bg-gray-700 text-white hover:bg-gray-600">
+                Logout
+              </button>
             </>
           )}
         </div>
