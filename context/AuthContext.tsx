@@ -1,14 +1,14 @@
 // context/AuthContext.tsx
 "use client";
 
-import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { fetchAuthSession, getCurrentUser, signOut } from "aws-amplify/auth";
 import { Hub } from "aws-amplify/utils";
+import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 
 type Ctx = {
-  isLoading: boolean;            // initial Cognito session check only
+  isLoading: boolean;
   isAuthenticated: boolean;
-  isMember: boolean;             // paid member
+  isMember: boolean;
   user: { username: string } | null;
   logout: () => Promise<void>;
   getIdToken: () => Promise<string | null>;
@@ -17,10 +17,10 @@ type Ctx = {
 const AuthContext = createContext<Ctx | undefined>(undefined);
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || "").replace(/\/+$/, "");
-const STATUS_URL = API_BASE ? `${API_BASE}/members/status` : "";
+const STATUS_URL = `${API_BASE}/members/status`;
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [isLoading, setIsLoading] = useState(true);        // only tracks Cognito check
+  const [isLoading, setIsLoading] = useState(true);
   const [user, setUser] = useState<{ username: string } | null>(null);
   const [isMember, setIsMember] = useState(false);
 
@@ -34,70 +34,49 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const checkMembership = async () => {
-    // If no API configured, just treat as not-a-member and exit quickly
-    if (!STATUS_URL) {
-      setIsMember(false);
-      return;
-    }
-
     const idToken = await getIdToken();
     if (!idToken) {
       setIsMember(false);
       return;
     }
-
     try {
-      const res = await fetch(STATUS_URL, {
-        headers: { Authorization: idToken },
-      });
-
+      const res = await fetch(STATUS_URL, { headers: { Authorization: idToken } });
       if (res.ok) {
         const data = await res.json().catch(() => ({}));
         setIsMember(!!data.active);
       } else {
-        // Fail closed, but never block UI
-        console.error("Membership check failed:", res.status);
         setIsMember(false);
+        console.error("Membership check failed:", res.status);
       }
     } catch (error) {
-      console.error("Error fetching membership status:", error);
       setIsMember(false);
+      console.error("Error fetching membership status:", error);
     }
   };
 
-  const refreshUser = async () => {
+  const refreshUserSession = async () => {
     setIsLoading(true);
     try {
       const cognitoUser = await getCurrentUser();
       setUser({ username: cognitoUser.username });
-
-      // Fire-and-forget membership check — do not block initial load
-      checkMembership();
-    } catch {
-      // Not signed in
+      await checkMembership();
+    } catch (error) {
       setUser(null);
       setIsMember(false);
     } finally {
-      // Key change: loading is DONE after Cognito check
       setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    // Initial load
-    refreshUser();
-
-    // React to auth events
+    refreshUserSession();
     const unsubscribe = Hub.listen("auth", ({ payload }) => {
-      switch (payload.event) {
-        case "signedIn":
-        case "tokenRefresh":
-          refreshUser();
-          break;
-        case "signedOut":
-          setUser(null);
-          setIsMember(false);
-          break;
+      if (payload.event === "signedIn" || payload.event === "tokenRefresh") {
+        refreshUserSession();
+      }
+      if (payload.event === "signedOut") {
+        setUser(null);
+        setIsMember(false);
       }
     });
     return unsubscribe;
@@ -109,17 +88,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsMember(false);
   };
 
-  const value = useMemo<Ctx>(
-    () => ({
-      isLoading,
-      isAuthenticated: !!user,
-      isMember,
-      user,
-      logout,
-      getIdToken,
-    }),
-    [isLoading, user, isMember]
-  );
+  const value = useMemo<Ctx>(() => ({
+    isLoading,
+    isAuthenticated: !!user,
+    isMember,
+    user,
+    logout,
+    getIdToken,
+  }), [isLoading, user, isMember]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
