@@ -18,4 +18,4 @@ const amplifyConfig = {
 };
 
 export default amplifyConfig;
-export { amplifyConfig };
+
