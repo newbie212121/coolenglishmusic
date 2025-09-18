@@ -1,10 +1,13 @@
-// pages/pricing.tsx
-import PricingSection from "@/components/landing/PricingSection"; // default export
+// pages/pricing.tsx  (Next.js pages router)
+// If you use the App Router, use app/pricing/page.tsx with the same JSX below.
+import Head from 'next/head';
+import PricingSection from '@/components/landing/PricingSection';
 
 export default function PricingPage() {
   return (
-    <main className="min-h-screen bg-gradient-to-b from-black to-neutral-900">
+    <>
+      <Head><title>Pricing – CoolEnglishMusic</title></Head>
       <PricingSection />
-    </main>
+    </>
   );
 }
