@@ -1,7 +1,7 @@
 // components/landing/PricingSection.tsx
 import { useState } from 'react';
 import { Check, Crown, Sparkles } from 'lucide-react';
-import { Auth } from 'aws-amplify';
+import { fetchAuthSession } from 'aws-amplify/auth';
 
 // Build a safe API URL once
 const BASE = (process.env.NEXT_PUBLIC_API_BASE || '').replace(/\/+$/, '');
@@ -14,47 +14,36 @@ export default function PricingSection() {
   const [loading, setLoading] = useState<string>('');
 
   const go = async (priceId: string) => {
-    try {
-      if (!API_URL) throw new Error('API base URL is not configured.');
-      setLoading(priceId);
+  try {
+    setLoading(priceId);
 
-      // 1) Require login and get Cognito ID token
-      let idToken = '';
-      try {
-        const session = await Auth.currentSession();
-        idToken = session.getIdToken().getJwtToken();
-      } catch {
-        alert('Login required');
-        setLoading('');
-        return;
-      }
+    // get the Cognito user sub (Amplify v6)
+    const session = await fetchAuthSession();
+    const userId = session.tokens?.idToken?.payload?.sub as string | undefined;
 
-      // 2) Call API with the JWT (API Gateway authorizer will verify it)
-      const res = await fetch(API_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': idToken,
-        },
-        body: JSON.stringify({ priceId }),
-      });
-
-      const text = await res.text();
-      let data: any = undefined;
-      try { data = JSON.parse(text); } catch {}
-
-      if (!res.ok || !data?.url) {
-        const msg = data?.message || text || `Checkout API error (HTTP ${res.status})`;
-        throw new Error(msg);
-      }
-
-      window.location.href = data.url; // Stripe hosted checkout
-    } catch (e: any) {
-      console.error('[pricing] checkout error:', e);
-      alert(e?.message || 'Could not redirect to payment page.');
+    if (!userId) {
+      alert('Please log in to continue.');
       setLoading('');
+      return;
     }
-  };
+
+    const res = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      // IMPORTANT: include userId
+      body: JSON.stringify({ priceId, userId }),
+    });
+
+    const data = await res.json();
+    if (!res.ok || !data?.url) throw new Error(data?.message || 'Checkout API error');
+
+    window.location.href = data.url;
+  } catch (e: any) {
+    alert(e?.message || 'Could not redirect to payment page.');
+    setLoading('');
+  }
+};
+
 
   return (
     <section className="py-20 px-4 sm:px-6 lg:px-8 bg-black">
