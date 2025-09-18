@@ -8,7 +8,7 @@ import { amplifyConfig } from "@/lib/amplify-config";
 
 export default function LoginCallback() {
   const router = useRouter();
-  const [status, setStatus] = useState("Completing sign-in…");
+  const [status, setStatus] = useState("Finalizing session…");
   const [error, setError] = useState<string | null>(null);
   const tried = useRef(false);
 
@@ -27,36 +27,41 @@ export default function LoginCallback() {
     (async () => {
       try {
         setStatus("Finalizing session…");
+        // Trigger code→token exchange and load current session
         await fetchAuthSession().catch(() => {});
 
-        // Poll up to ~8s for ID token
+        // Poll briefly until ID token is visible
         const start = Date.now();
         let idToken: string | null = null;
         while (Date.now() - start < 8000) {
           const s = await fetchAuthSession().catch(() => null);
           idToken = s?.tokens?.idToken?.toString() || null;
           if (idToken) break;
-          await new Promise(r => setTimeout(r, 250));
+          await new Promise((r) => setTimeout(r, 250));
         }
 
         if (!idToken) {
-          setError("We couldn’t finish sign-in. Likely a redirect URL mismatch or wrong domain.");
+          setError("We couldn’t finish sign-in. Check your Cognito domain/redirects and try again.");
           setStatus("");
           return;
         }
 
+        // Hydrate user object (nice-to-have)
         await getCurrentUser().catch(() => {});
+
+        // Go to intended page
         setStatus("All set — taking you back…");
         const next = getNext();
         window.location.replace(next);
       } catch (e) {
+        console.error(e);
         setError("Unexpected sign-in error. Please try again.");
         setStatus("");
       }
     })();
   }, [router.isReady, router]);
 
-  // Optional debug info (open /login/callback?debug=1)
+  // Optional tiny debug widget (?debug=1)
   const showDebug = router.query.debug === "1";
   const oauth = (amplifyConfig as any)?.Auth?.Cognito?.loginWith?.oauth || {};
   return (
@@ -74,7 +79,6 @@ export default function LoginCallback() {
             </a>
           </>
         )}
-
         {showDebug && (
           <div className="mt-6 text-left text-sm max-w-xl mx-auto p-3 rounded bg-white/5">
             <div><b>Domain</b>: {oauth.domain || "(missing)"} </div>

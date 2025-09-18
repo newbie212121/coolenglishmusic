@@ -4,15 +4,19 @@ import type { AppProps } from "next/app";
 import { Amplify } from "aws-amplify";
 import { amplifyConfig } from "@/lib/amplify-config";
 import { AuthProvider } from "@/context/AuthContext";
-import NavBar from "@/components/landing/NavBar";
+import Layout from "@/components/Layout";
+import AuthGate from "@/components/AuthGate";
 
-Amplify.configure(amplifyConfig);
+Amplify.configure(amplifyConfig, { ssr: true });
 
 export default function App({ Component, pageProps }: AppProps) {
   return (
     <AuthProvider>
-      <NavBar />
-      <Component {...pageProps} />
+      <AuthGate>
+        <Layout>
+          <Component {...pageProps} />
+        </Layout>
+      </AuthGate>
     </AuthProvider>
   );
 }
