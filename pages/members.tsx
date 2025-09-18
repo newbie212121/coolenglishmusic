@@ -12,18 +12,21 @@ export default function Members() {
   const [active, setActive] = useState<boolean | null>(null);
   const [busy, setBusy] = useState(false);
 
-  // Helper to fetch the current ID token (JWT) or redirect to login
+  const toLogin = () => {
+    window.location.href = `/login?next=${encodeURIComponent('/members')}`;
+  };
+
   const getIdToken = async (): Promise<string | null> => {
     try {
       const session = await fetchAuthSession();
       const idToken = session.tokens?.idToken?.toString() || null;
       if (!idToken) {
-        window.location.href = `/login?next=${encodeURIComponent('/members')}`;
+        toLogin();
         return null;
       }
       return idToken;
     } catch {
-      window.location.href = `/login?next=${encodeURIComponent('/members')}`;
+      toLogin();
       return null;
     }
   };
@@ -38,17 +41,24 @@ export default function Members() {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: idToken, // works with your JWT authorizer
+            // IMPORTANT: Bearer format so API Gateway JWT authorizer accepts it
+            Authorization: `Bearer ${idToken}`,
           },
         });
 
         if (res.status === 401) {
-          window.location.href = `/login?next=${encodeURIComponent('/members')}`;
+          // token rejected → go log in
+          toLogin();
           return;
         }
 
-        const data = await res.json().catch(() => ({} as any));
-        setActive(!!data.active);
+        if (!res.ok) {
+          console.error('[members] status non-OK:', res.status);
+          setActive(false);
+        } else {
+          const data = await res.json().catch(() => ({} as any));
+          setActive(!!data.active);
+        }
       } catch (e) {
         console.error('[members] status error:', e);
         setActive(false);
@@ -68,7 +78,7 @@ export default function Members() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: idToken,
+          Authorization: `Bearer ${idToken}`,
         },
       });
 
@@ -79,11 +89,8 @@ export default function Members() {
       }
 
       const data = await res.json();
-      if (data?.url) {
-        window.location.href = data.url;
-      } else {
-        alert('No portal URL returned.');
-      }
+      if (data?.url) window.location.href = data.url;
+      else alert('No portal URL returned.');
     } catch (e) {
       console.error('[members] portal error:', e);
       alert('Could not open billing portal.');
@@ -92,9 +99,7 @@ export default function Members() {
     }
   };
 
-  if (loading) {
-    return <div className="p-8 text-white">Checking membership…</div>;
-  }
+  if (loading) return <div className="p-8 text-white">Checking membership…</div>;
 
   if (!active) {
     return (
@@ -127,8 +132,6 @@ export default function Members() {
       >
         {busy ? 'Opening…' : 'Manage Billing'}
       </button>
-
-      {/* TODO: render your activities grid here */}
     </div>
   );
 }
