@@ -1,88 +1,43 @@
-// pages/login/callback.tsx
-"use client";
-
-import { useEffect, useRef, useState } from "react";
+// pages/login.tsx
+import { useEffect } from "react";
 import { useRouter } from "next/router";
-import { fetchAuthSession, getCurrentUser } from "aws-amplify/auth";
-import { amplifyConfig } from "@/lib/amplify-config";
+import { signInWithRedirect } from "aws-amplify/auth";
+import { useAuth } from "@/context/AuthContext";
 
-export default function LoginCallback() {
+export default function LoginPage() {
   const router = useRouter();
-  const [status, setStatus] = useState("Completing sign-in…");
-  const [error, setError] = useState<string | null>(null);
-  const tried = useRef(false);
-
-  const getNext = () => {
-    const fromParam = (router.query.next as string) || "";
-    const fromStorage = sessionStorage.getItem("nextAfterLogin") || "";
-    const next = fromParam || fromStorage || "/activities";
-    sessionStorage.removeItem("nextAfterLogin");
-    return next;
-  };
+  const { isAuthenticated, isLoading } = useAuth();
 
   useEffect(() => {
-    if (!router.isReady || tried.current) return;
-    tried.current = true;
+    if (!router.isReady) return;
 
-    (async () => {
-      try {
-        setStatus("Finalizing session…");
-        await fetchAuthSession().catch(() => {});
+    if (!isLoading && isAuthenticated) {
+      const next = (router.query.next as string) || "/activities";
+      router.replace(next);
+    } else {
+      // store the intended page for the callback
+      const next = (router.query.next as string) || "/activities";
+      sessionStorage.setItem("nextAfterLogin", next);
+    }
+  }, [isAuthenticated, isLoading, router.isReady, router]);
 
-        // Poll up to ~8s for ID token
-        const start = Date.now();
-        let idToken: string | null = null;
-        while (Date.now() - start < 8000) {
-          const s = await fetchAuthSession().catch(() => null);
-          idToken = s?.tokens?.idToken?.toString() || null;
-          if (idToken) break;
-          await new Promise(r => setTimeout(r, 250));
-        }
+  const handleLogin = async () => {
+    await signInWithRedirect(); // Hosted UI
+  };
 
-        if (!idToken) {
-          setError("We couldn’t finish sign-in. Likely a redirect URL mismatch or wrong domain.");
-          setStatus("");
-          return;
-        }
+  if (isLoading) return <div className="p-8 text-white">Loading…</div>;
 
-        await getCurrentUser().catch(() => {});
-        setStatus("All set — taking you back…");
-        const next = getNext();
-        window.location.replace(next);
-      } catch (e) {
-        setError("Unexpected sign-in error. Please try again.");
-        setStatus("");
-      }
-    })();
-  }, [router.isReady, router]);
-
-  // DEBUG PANEL: shows what config the page is using (only when ?debug=1 is present)
-  const showDebug = router.query.debug === "1";
-  const oauth = (amplifyConfig as any)?.Auth?.Cognito?.loginWith?.oauth || {};
   return (
-    <div className="min-h-screen flex items-center justify-center bg-black text-white">
-      <div className="text-center space-y-3">
-        {status && <div>{status}</div>}
-        {error && (
-          <>
-            <div className="text-red-400">{error}</div>
-            <a
-              href={`/login?next=${encodeURIComponent(getNext())}`}
-              className="inline-block mt-2 px-4 py-2 rounded-full bg-green-500 text-black font-semibold hover:bg-green-400"
-            >
-              Try again
-            </a>
-          </>
-        )}
-
-        {showDebug && (
-          <div className="mt-6 text-left text-sm max-w-xl mx-auto p-3 rounded bg-white/5">
-            <div><b>Domain</b>: {oauth.domain || "(missing)"} </div>
-            <div><b>redirectSignIn</b>: {(oauth.redirectSignIn || []).join(", ")}</div>
-            <div><b>redirectSignOut</b>: {(oauth.redirectSignOut || []).join(", ")}</div>
-            <div><b>URL</b>: {typeof window !== "undefined" ? window.location.href : ""}</div>
-          </div>
-        )}
+    <div className="flex items-center justify-center py-24">
+      <div className="text-center">
+        <h1 className="text-4xl font-bold mb-4">Log In to Your Account</h1>
+        <p className="text-gray-400 mb-8">Access your premium music activities.</p>
+        <button
+          onClick={handleLogin}
+          className="px-8 py-3 rounded-full bg-green-500 text-black font-semibold hover:bg-green-400"
+        >
+          Log In
+        </button>
       </div>
     </div>
   );
