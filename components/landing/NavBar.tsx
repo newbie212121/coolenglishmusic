@@ -1,72 +1,98 @@
-// components/landing/NavBar.tsx
+// components/NavBar.tsx
 import Link from 'next/link';
-import { useRouter } from 'next/router';
+import { useAuth } from '../context/AuthContext';
 import { signOut } from 'aws-amplify/auth';
-import { useAuth } from '@/context/AuthContext';
+import { useRouter } from 'next/router';
 
 export default function NavBar() {
-  const { isAuthenticated, isMember, isLoading, userEmail } = useAuth();
+  const { isAuthenticated, isMember, isLoading } = useAuth();
   const router = useRouter();
 
-  const onLogout = async () => {
-    try { await signOut(); } finally { router.push('/'); }
+  const handleLogout = async () => {
+    try {
+      await signOut();
+      router.push('/'); // Back to home after logout
+    } catch (err) {
+      console.error('[navbar] logout error:', err);
+    }
+  };
+
+  const renderAuthButtons = () => {
+    if (isLoading) {
+      return (
+        <div className="h-8 w-24 bg-gray-700 rounded-full animate-pulse" />
+      );
+    }
+
+    if (!isAuthenticated) {
+      return (
+        <Link
+          href="/login"
+          className="px-4 py-2 rounded-full bg-green-500 text-black font-semibold hover:bg-green-400"
+        >
+          Log in
+        </Link>
+      );
+    }
+
+    if (isAuthenticated && !isMember) {
+      return (
+        <>
+          <Link
+            href="/pricing"
+            className="px-4 py-2 rounded-full bg-green-500 text-black font-semibold hover:bg-green-400 mr-4"
+          >
+            Upgrade to Premium
+          </Link>
+          <button
+            onClick={handleLogout}
+            className="text-gray-300 hover:text-white"
+          >
+            Logout
+          </button>
+        </>
+      );
+    }
+
+    if (isAuthenticated && isMember) {
+      return (
+        <>
+          <Link
+            href="/dashboard"
+            className="text-gray-300 hover:text-white mr-4"
+          >
+            Dashboard
+          </Link>
+          <button
+            onClick={handleLogout}
+            className="px-4 py-2 rounded-full bg-gray-600 text-white hover:bg-gray-500"
+          >
+            Logout
+          </button>
+        </>
+      );
+    }
   };
 
   return (
-    <nav className="w-full px-5 py-3 flex items-center justify-between bg-black">
-      {/* Left: brand + primary nav */}
-      <div className="flex items-center gap-8">
-        <Link href="/" className="text-white font-bold text-xl">CoolEnglishMusic</Link>
-        <div className="flex items-center gap-6">
-          <Link href="/" className="text-gray-300 hover:text-white">Home</Link>
-          <Link href="/activities" className="text-gray-300 hover:text-white">Activities</Link>
-          <Link href="/pricing" className="text-gray-300 hover:text-white">Pricing</Link>
+    <nav className="bg-black p-4 flex justify-between items-center">
+      <div className="flex items-center">
+        <Link href="/" className="text-white text-2xl font-bold">
+          CoolEnglishMusic
+        </Link>
+        <div className="ml-10 space-x-6">
+          <Link href="/" className="text-gray-300 hover:text-white">
+            Home
+          </Link>
+          <Link href="/activities" className="text-gray-300 hover:text-white">
+            Activities
+          </Link>
+          <Link href="/pricing" className="text-gray-300 hover:text-white">
+            Pricing
+          </Link>
         </div>
       </div>
-
-      {/* Right: auth controls */}
-      <div className="flex items-center gap-3">
-        {isLoading && <div className="h-8 w-24 rounded-full bg-gray-700 animate-pulse" />}
-
-        {!isLoading && !isAuthenticated && (
-          <>
-            <Link href="/login" className="text-gray-300 hover:text-white">Log in</Link>
-            <Link
-              href="/pricing"
-              className="px-4 py-1.5 rounded-full bg-green-400 text-black font-semibold hover:bg-green-300"
-            >
-              Upgrade to Premium
-            </Link>
-          </>
-        )}
-
-        {!isLoading && isAuthenticated && !isMember && (
-          <>
-            <span className="text-gray-400 hidden sm:inline">Hi{userEmail ? `, ${userEmail}` : ''}</span>
-            <Link
-              href="/pricing"
-              className="px-4 py-1.5 rounded-full bg-green-400 text-black font-semibold hover:bg-green-300"
-            >
-              Upgrade to Premium
-            </Link>
-            <button onClick={onLogout} className="text-gray-300 hover:text-white">Logout</button>
-          </>
-        )}
-
-        {!isLoading && isAuthenticated && isMember && (
-          <>
-            <span className="text-gray-400 hidden sm:inline">Hi{userEmail ? `, ${userEmail}` : ''}</span>
-            {/* When your Billing Portal route is live, link it here */}
-            <Link
-              href="/members"
-              className="px-4 py-1.5 rounded-full bg-gray-800 text-white hover:bg-gray-700"
-            >
-              Dashboard
-            </Link>
-            <button onClick={onLogout} className="text-gray-300 hover:text-white">Logout</button>
-          </>
-        )}
-      </div>
+      <div className="flex items-center">{renderAuthButtons()}</div>
     </nav>
   );
 }
