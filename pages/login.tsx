@@ -1,36 +1,45 @@
 // pages/login.tsx
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { signInWithRedirect } from "aws-amplify/auth";
 import { useRouter } from "next/router";
 import { useAuth } from "@/context/AuthContext";
 
-export default function LoginPage() {
+export default function Login() {
   const router = useRouter();
   const { isAuthenticated, isLoading } = useAuth();
 
+  const nextDest = useMemo(() => {
+    const q = router.query.next as string | undefined;
+    return q && q.startsWith("/") ? q : "/activities";
+  }, [router.query.next]);
+
+  // If already signed in, bounce to next
   useEffect(() => {
     if (!isLoading && isAuthenticated) {
-      const next = (router.query.next as string) || "/activities";
-      router.replace(next);
+      router.replace(nextDest);
     }
-  }, [isAuthenticated, isLoading, router]);
+  }, [isLoading, isAuthenticated, nextDest, router]);
 
-  const handleLogin = async () => {
-    await signInWithRedirect(); // uses your Amplify Hosted UI config
+  const go = async () => {
+    // remember desired destination across the Hosted UI round-trip
+    try {
+      sessionStorage.setItem("postLoginNext", nextDest);
+    } catch {}
+    await signInWithRedirect();
   };
 
-  if (isLoading) return <div className="p-8 text-white">Loading…</div>;
+  if (isAuthenticated) return null;
 
   return (
-    <main className="min-h-[60vh] grid place-items-center bg-[#0c1320] text-white">
+    <main className="min-h-[60vh] flex items-center justify-center bg-[#0b1220] text-white">
       <div className="text-center">
-        <h1 className="text-4xl font-bold mb-3">Log In to Your Account</h1>
+        <h1 className="text-4xl font-bold mb-2">Log In to Your Account</h1>
         <p className="text-gray-400 mb-8">Access your premium music activities.</p>
         <button
-          onClick={handleLogin}
-          className="px-8 py-3 rounded-full bg-green-500 text-black font-semibold hover:bg-green-400"
+          onClick={go}
+          className="px-6 py-3 rounded-full bg-green-500 text-black font-semibold hover:bg-green-400"
         >
           Log In
         </button>

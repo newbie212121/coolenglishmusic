@@ -1,90 +1,104 @@
 // components/landing/PricingSection.tsx
 "use client";
 
-import { useState } from "react";
 import { useRouter } from "next/router";
 import { useAuth } from "@/context/AuthContext";
 
-const BASE = (process.env.NEXT_PUBLIC_API_BASE || "").replace(/\/+$/, "");
-const CREATE_URL = `${BASE}/create-checkout-session`;
-
-type Plan = { label: string; priceId: string };
-
-const PLANS: Plan[] = [
-  { label: "Monthly", priceId: process.env.NEXT_PUBLIC_STRIPE_PRICE_MONTHLY || "" },
-  { label: "Annual",  priceId: process.env.NEXT_PUBLIC_STRIPE_PRICE_ANNUAL  || "" },
-];
+const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || "").replace(/\/+$/, "");
 
 export default function PricingSection() {
   const router = useRouter();
-  const { isAuthenticated, user } = useAuth();
-  const [busy, setBusy] = useState<string | null>(null);
+  const { isAuthenticated, getIdToken } = useAuth();
 
-  const startCheckout = async (plan: Plan) => {
-    // 1) force login first, bounce back to /pricing after login
+  const ensureAuth = async () => {
     if (!isAuthenticated) {
-      router.push("/login?next=/pricing");
-      return;
+      // remember where we came from
+      const next = "/pricing";
+      router.push(`/login?next=${encodeURIComponent(next)}`);
+      return null;
     }
+    const id = await getIdToken();
+    if (!id) {
+      const next = "/pricing";
+      router.push(`/login?next=${encodeURIComponent(next)}`);
+      return null;
+    }
+    return id;
+  };
 
-    try {
-      setBusy(plan.label);
-
-      // You must pass user sub as userId so your webhook can write Dynamo
-      const idToken = (await import("aws-amplify/auth")).fetchAuthSession().then(s => s.tokens?.idToken?.toString());
-
-      const res = await fetch(CREATE_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Origin: window.location.origin },
-        body: JSON.stringify({
-          priceId: plan.priceId,
-          userId: (await (await import("aws-amplify/auth")).getCurrentUser()).userId, // Cognito sub
-        }),
-      });
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        alert(err?.message || "Could not start checkout.");
-        return;
-      }
-
-      const data = await res.json();
-      if (data?.url) {
-        window.location.href = data.url;
-      } else {
-        alert("No checkout URL returned.");
-      }
-    } catch (e) {
-      console.error("[pricing] checkout error:", e);
-      alert("Checkout failed. Please try again.");
-    } finally {
-      setBusy(null);
+  const goCheckout = async (plan: "monthly" | "annual") => {
+    const id = await ensureAuth();
+    if (!id) return;
+    const res = await fetch(`${API_BASE}/billing/checkout`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: id },
+      body: JSON.stringify({ plan }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && data?.url) {
+      window.location.href = data.url;
+    } else {
+      alert(data?.message || "Could not start checkout.");
     }
   };
 
   return (
-    <section className="mx-auto max-w-5xl px-4 py-12 text-white">
-      <h2 className="text-4xl font-bold text-center mb-10">Simple, Flexible Pricing</h2>
+    <section className="bg-black text-white">
+      <div className="max-w-5xl mx-auto px-4 py-14">
+        <h2 className="text-center text-4xl font-extrabold mb-2">Simple, Flexible Pricing</h2>
+        <p className="text-center text-gray-400 mb-12">
+          Unlock unlimited access to our growing library of interactive music activities.
+        </p>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        {PLANS.map((p) => (
-          <div key={p.label} className="rounded-2xl border border-green-900/40 bg-black/40 p-6">
-            <h3 className="text-xl font-semibold mb-3">{p.label}</h3>
-            <ul className="text-gray-300 mb-6 space-y-2">
-              <li>Unlimited Activity Access</li>
-              <li>Weekly New Content</li>
-              <li>All Music Genres</li>
-              <li>Priority Support</li>
+        <div className="grid md:grid-cols-2 gap-8">
+          {/* Monthly */}
+          <div className="rounded-2xl border border-white/10 bg-[#121821] p-8 shadow-xl">
+            <h3 className="text-2xl font-semibold mb-1">Monthly</h3>
+            <p className="text-5xl font-extrabold mt-4 mb-6">
+              <span className="align-top text-2xl">$</span>2
+              <span className="ml-2 text-2xl text-gray-300">/month</span>
+            </p>
+            <p className="text-gray-400 mb-6">Perfect for trying things out.</p>
+            <ul className="space-y-3 mb-8 text-gray-300">
+              <li>✅ Unlimited Activity Access</li>
+              <li>✅ Weekly New Content</li>
+              <li>✅ All Music Genres</li>
+              <li>✅ Priority Support</li>
             </ul>
             <button
-              onClick={() => startCheckout(p)}
-              disabled={!!busy}
-              className="w-full rounded-full bg-green-500 text-black font-semibold py-3 hover:bg-green-400 disabled:opacity-60"
+              onClick={() => goCheckout("monthly")}
+              className="w-full px-6 py-4 rounded-full bg-gray-800 hover:bg-gray-700 font-semibold"
             >
-              {busy === p.label ? "Processing..." : p.label === "Annual" ? "Go Annual" : "Choose Monthly"}
+              Choose Monthly
             </button>
           </div>
-        ))}
+
+          {/* Annual */}
+          <div className="rounded-2xl border border-green-600/50 bg-[#121821] p-8 shadow-xl relative">
+            <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-green-600 text-black px-3 py-1 rounded-full text-sm font-semibold">
+              🏆 Best Value
+            </div>
+            <h3 className="text-2xl font-semibold mb-1">Annual</h3>
+            <p className="text-5xl font-extrabold mt-4 mb-2">
+              <span className="align-top text-2xl">$</span>15
+              <span className="ml-2 text-2xl text-gray-300">/year</span>
+            </p>
+            <p className="text-green-400 font-semibold mb-1">Save 37%</p>
+            <p className="text-gray-400 mb-6">Just $1.25 per month</p>
+            <ul className="space-y-3 mb-8 text-gray-300">
+              <li>✅ Everything in Monthly</li>
+              <li>✅ Save 37% compared to monthly</li>
+              <li>✅ Early Access to New Features</li>
+              <li>✅ Downloadable Resources</li>
+            </ul>
+            <button
+              onClick={() => goCheckout("annual")}
+              className="w-full px-6 py-4 rounded-full bg-green-500 text-black hover:bg-green-400 font-semibold"
+            >
+              Go Annual
+            </button>
+          </div>
+        </div>
       </div>
     </section>
   );

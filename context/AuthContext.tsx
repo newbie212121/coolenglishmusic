@@ -1,38 +1,54 @@
 // context/AuthContext.tsx
-import { createContext, useContext, useEffect, useState, ReactNode } from "react";
-import { fetchAuthSession, getCurrentUser } from "aws-amplify/auth";
+"use client";
 
-type AuthCtx = {
+import {
+  fetchAuthSession,
+  getCurrentUser,
+  signOut,
+} from "aws-amplify/auth";
+import { Hub } from "aws-amplify/utils";
+import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+
+type Ctx = {
+  isLoading: boolean;
   isAuthenticated: boolean;
   isMember: boolean;
-  isLoading: boolean;
-  user: { username?: string } | null;
+  user: { username: string } | null;
+  refresh: () => Promise<void>;
+  logout: () => Promise<void>;
+  getIdToken: () => Promise<string | null>;
 };
 
-const AuthContext = createContext<AuthCtx | undefined>(undefined);
+const AuthContext = createContext<Ctx | undefined>(undefined);
 
-// Build API base safely
-const BASE = (process.env.NEXT_PUBLIC_API_BASE || "").replace(/\/+$/, "");
-const STATUS_URL = `${BASE}/members/status`;
+const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || "").replace(/\/+$/, "");
+const STATUS_URL = `${API_BASE}/members/status`;   // expects Authorization: <idToken> (no Bearer)
 
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<{ username?: string } | null>(null);
-  const [isMember, setIsMember] = useState(false);
+export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
+  const [user, setUser] = useState<{ username: string } | null>(null);
+  const [isMember, setIsMember] = useState(false);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        // Is there a signed-in user?
-        const u = await getCurrentUser().catch(() => null);
-        setUser(u as any);
+  const getIdToken = async () => {
+    try {
+      const s = await fetchAuthSession();
+      return s.tokens?.idToken?.toString() || null;
+    } catch {
+      return null;
+    }
+  };
 
-        // If signed in, check membership
-        const session = await fetchAuthSession().catch(() => null);
-        const idToken = session?.tokens?.idToken?.toString();
-        if (idToken) {
+  const refresh = async () => {
+    setIsLoading(true);
+    try {
+      const u = await getCurrentUser().catch(() => null);
+      setUser(u ? { username: u.username } : null);
+
+      if (u) {
+        const id = await getIdToken();
+        if (id) {
           const res = await fetch(STATUS_URL, {
-            headers: { Authorization: idToken }, // your API expects raw token (no Bearer)
+            headers: { Authorization: id, "Content-Type": "application/json" },
           });
           if (res.ok) {
             const data = await res.json().catch(() => ({}));
@@ -43,31 +59,51 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } else {
           setIsMember(false);
         }
-      } catch {
+      } else {
+        setIsMember(false);
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    refresh();
+
+    const unsub = Hub.listen("auth", ({ payload }) => {
+      // Keep context accurate without page refresh
+      if (payload.event === "signedIn" || payload.event === "tokenRefresh") {
+        refresh();
+      }
+      if (payload.event === "signedOut") {
         setUser(null);
         setIsMember(false);
-      } finally {
-        setIsLoading(false);
       }
-    })();
+    });
+    return () => unsub();
   }, []);
 
-  return (
-    <AuthContext.Provider
-      value={{
-        isAuthenticated: !!user,
-        isMember,
-        isLoading,
-        user,
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
-  );
+  const logout = async () => {
+    await signOut();
+    setUser(null);
+    setIsMember(false);
+  };
+
+  const value = useMemo<Ctx>(() => ({
+    isLoading,
+    isAuthenticated: !!user,
+    isMember,
+    user,
+    refresh,
+    logout,
+    getIdToken,
+  }), [isLoading, user, isMember]);
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {
   const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error("useAuth must be used within <AuthProvider>");
+  if (!ctx) throw new Error("useAuth must be used within AuthProvider");
   return ctx;
 }
