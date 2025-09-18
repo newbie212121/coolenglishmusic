@@ -9,36 +9,39 @@ const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || "").replace(/\/+$/, "");
 export default function PricingSection() {
   const router = useRouter();
   const { isAuthenticated, getIdToken } = useAuth();
-
-  const ensureAuth = async () => {
+  
+  // Helper function to check for login before proceeding
+  const requireLoginThen = async (afterLoginPath: string) => {
     if (!isAuthenticated) {
-      // remember where we came from
-      const next = "/pricing";
-      router.push(`/login?next=${encodeURIComponent(next)}`);
-      return null;
+      router.push(`/login?next=${encodeURIComponent(afterLoginPath)}`);
+      return false;
     }
-    const id = await getIdToken();
-    if (!id) {
-      const next = "/pricing";
-      router.push(`/login?next=${encodeURIComponent(next)}`);
-      return null;
-    }
-    return id;
+    return true;
   };
 
   const goCheckout = async (plan: "monthly" | "annual") => {
-    const id = await ensureAuth();
-    if (!id) return;
-    const res = await fetch(`${API_BASE}/billing/checkout`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: id },
-      body: JSON.stringify({ plan }),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (res.ok && data?.url) {
-      window.location.href = data.url;
-    } else {
-      alert(data?.message || "Could not start checkout.");
+    // Use the helper to gate the action
+    const ok = await requireLoginThen("/pricing");
+    if (!ok) return;
+
+    try {
+        const idToken = await getIdToken();
+        if(!idToken) throw new Error("Could not get auth token.");
+
+        const res = await fetch(`${API_BASE}/billing/checkout`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: idToken },
+          body: JSON.stringify({ plan }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && data?.url) {
+          window.location.href = data.url;
+        } else {
+          alert(data?.message || "Could not start checkout.");
+        }
+    } catch (err) {
+        console.error("Checkout error:", err);
+        alert("An error occurred during checkout.");
     }
   };
 
@@ -49,9 +52,8 @@ export default function PricingSection() {
         <p className="text-center text-gray-400 mb-12">
           Unlock unlimited access to our growing library of interactive music activities.
         </p>
-
         <div className="grid md:grid-cols-2 gap-8">
-          {/* Monthly */}
+          {/* Monthly Plan Card */}
           <div className="rounded-2xl border border-white/10 bg-[#121821] p-8 shadow-xl">
             <h3 className="text-2xl font-semibold mb-1">Monthly</h3>
             <p className="text-5xl font-extrabold mt-4 mb-6">
@@ -72,8 +74,7 @@ export default function PricingSection() {
               Choose Monthly
             </button>
           </div>
-
-          {/* Annual */}
+          {/* Annual Plan Card */}
           <div className="rounded-2xl border border-green-600/50 bg-[#121821] p-8 shadow-xl relative">
             <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-green-600 text-black px-3 py-1 rounded-full text-sm font-semibold">
               🏆 Best Value

@@ -4,15 +4,25 @@
 import { useEffect } from "react";
 import { useRouter } from "next/router";
 
+/**
+ * Cognito Hosted UI will return here.
+ * We pull ?next (if present) or the sessionStorage fallback,
+ * then send the user there.
+ */
 export default function LoginCallback() {
   const router = useRouter();
 
   useEffect(() => {
-    const stored = typeof window !== "undefined" ? sessionStorage.getItem("postLoginNext") : null;
-    const next = stored || (router.query.next as string) || "/activities";
-    try { sessionStorage.removeItem("postLoginNext"); } catch {}
-    router.replace(next.startsWith("/") ? next : "/activities");
+    const fromParam = (router.query.next as string) || "";
+    const fromStorage = sessionStorage.getItem("nextAfterLogin") || "";
+    const next = fromParam || fromStorage || "/activities";
+    sessionStorage.removeItem("nextAfterLogin");
+    router.replace(next);
   }, [router]);
 
-  return <div className="p-8 text-white">Completing sign in…</div>;
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-black text-white">
+      Completing sign-in…
+    </div>
+  );
 }
