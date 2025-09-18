@@ -3,7 +3,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/router";
-import { handleSignIn, fetchAuthSession, getCurrentUser } from "aws-amplify/auth";
+import { handleSignIn, fetchAuthSession, getCurrentUser } from "@aws-amplify/auth";
 import { amplifyConfig } from "@/lib/amplify-config";
 
 export default function LoginCallback() {
