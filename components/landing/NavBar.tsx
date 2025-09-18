@@ -1,58 +1,72 @@
 // components/landing/NavBar.tsx
-import Link from "next/link";
-import { useEffect, useState } from "react";
-import { getCurrentUser, signInWithRedirect, signOut } from "aws-amplify/auth";
-import type { AuthUser } from "aws-amplify/auth";
+import Link from 'next/link';
+import { useRouter } from 'next/router';
+import { signOut } from 'aws-amplify/auth';
+import { useAuth } from '@/context/AuthContext';
 
 export default function NavBar() {
-  const [user, setUser] = useState<AuthUser | null>(null);
+  const { isAuthenticated, isMember, isLoading, userEmail } = useAuth();
+  const router = useRouter();
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const u = await getCurrentUser();
-        setUser(u);
-      } catch {
-        setUser(null);
-      }
-    })();
-  }, []);
+  const onLogout = async () => {
+    try { await signOut(); } finally { router.push('/'); }
+  };
 
   return (
-    <header className="sticky top-0 z-50 bg-black/80 backdrop-blur border-b border-neutral-800">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
-          <Link href="/" className="text-white text-xl font-bold">
-            <span className="text-emerald-400">Cool</span>English
-            <span className="text-white/80">Music</span>
-          </Link>
-
-          <nav className="flex items-center gap-4 text-sm">
-            <Link href="/pricing" className="text-neutral-300 hover:text-white">
-              Pricing
-            </Link>
-            <Link href="/members" className="text-neutral-300 hover:text-white">
-              Members
-            </Link>
-
-            {user ? (
-              <button
-                onClick={() => signOut()}
-                className="bg-neutral-700 px-3 py-1.5 rounded-lg"
-              >
-                Logout
-              </button>
-            ) : (
-              <button
-                onClick={() => signInWithRedirect()}
-                className="spotify-green text-black font-semibold px-4 py-2 rounded-lg"
-              >
-                Log in
-              </button>
-            )}
-          </nav>
+    <nav className="w-full px-5 py-3 flex items-center justify-between bg-black">
+      {/* Left: brand + primary nav */}
+      <div className="flex items-center gap-8">
+        <Link href="/" className="text-white font-bold text-xl">CoolEnglishMusic</Link>
+        <div className="flex items-center gap-6">
+          <Link href="/" className="text-gray-300 hover:text-white">Home</Link>
+          <Link href="/activities" className="text-gray-300 hover:text-white">Activities</Link>
+          <Link href="/pricing" className="text-gray-300 hover:text-white">Pricing</Link>
         </div>
       </div>
-    </header>
+
+      {/* Right: auth controls */}
+      <div className="flex items-center gap-3">
+        {isLoading && <div className="h-8 w-24 rounded-full bg-gray-700 animate-pulse" />}
+
+        {!isLoading && !isAuthenticated && (
+          <>
+            <Link href="/login" className="text-gray-300 hover:text-white">Log in</Link>
+            <Link
+              href="/pricing"
+              className="px-4 py-1.5 rounded-full bg-green-400 text-black font-semibold hover:bg-green-300"
+            >
+              Upgrade to Premium
+            </Link>
+          </>
+        )}
+
+        {!isLoading && isAuthenticated && !isMember && (
+          <>
+            <span className="text-gray-400 hidden sm:inline">Hi{userEmail ? `, ${userEmail}` : ''}</span>
+            <Link
+              href="/pricing"
+              className="px-4 py-1.5 rounded-full bg-green-400 text-black font-semibold hover:bg-green-300"
+            >
+              Upgrade to Premium
+            </Link>
+            <button onClick={onLogout} className="text-gray-300 hover:text-white">Logout</button>
+          </>
+        )}
+
+        {!isLoading && isAuthenticated && isMember && (
+          <>
+            <span className="text-gray-400 hidden sm:inline">Hi{userEmail ? `, ${userEmail}` : ''}</span>
+            {/* When your Billing Portal route is live, link it here */}
+            <Link
+              href="/members"
+              className="px-4 py-1.5 rounded-full bg-gray-800 text-white hover:bg-gray-700"
+            >
+              Dashboard
+            </Link>
+            <button onClick={onLogout} className="text-gray-300 hover:text-white">Logout</button>
+          </>
+        )}
+      </div>
+    </nav>
   );
 }
