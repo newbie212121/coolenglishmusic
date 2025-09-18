@@ -2,7 +2,7 @@
 import "@/styles/globals.css";
 import type { AppProps } from "next/app";
 import { Amplify } from "aws-amplify";
-import amplifyconfig from "../src/amplifyconfiguration.json";
+import amplifyconfig from '../amplifyconfiguration.json';
 import { AuthProvider } from "@/context/AuthContext";
 
 Amplify.configure(amplifyconfig);
