@@ -3,7 +3,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/router";
-import { handleSignIn, fetchAuthSession, getCurrentUser } from "@aws-amplify/auth";
+// ✅ stick with the v6 exports you already have installed
+import { fetchAuthSession, getCurrentUser } from "aws-amplify/auth";
 import { amplifyConfig } from "@/lib/amplify-config";
 
 export default function LoginCallback() {
@@ -26,31 +27,31 @@ export default function LoginCallback() {
 
     (async () => {
       try {
+        // 1) Try to let Amplify complete the code→token exchange.
+        //    (Amplify v6 performs the exchange when you call fetchAuthSession
+        //     after configure() and with a ?code=… URL present.)
         setStatus("Completing sign-in with Cognito…");
-        // This is the key call for Amplify v6 Hosted UI redirect:
-        await handleSignIn();
 
-        // Now the code→token exchange should be done; load the session
-        let session = await fetchAuthSession({ forceRefresh: false });
-
-        // On some browsers it can take a moment—poll briefly
+        // Do a few quick attempts; some browsers/storage need a tick to settle.
+        let idToken: string | null = null;
         const start = Date.now();
-        let idToken = session.tokens?.idToken?.toString() || null;
-        while (!idToken && Date.now() - start < 8000) {
+        while (Date.now() - start < 8000) {
+          const session = await fetchAuthSession().catch(() => null);
+          idToken = session?.tokens?.idToken?.toString() || null;
+          if (idToken) break;
           await new Promise((r) => setTimeout(r, 250));
-          session = await fetchAuthSession({ forceRefresh: false });
-          idToken = session.tokens?.idToken?.toString() || null;
         }
 
         if (!idToken) {
-          setError("We couldn’t finish sign-in (no ID token). Check domain/redirects and try again.");
+          setError("We couldn’t finish sign-in (no ID token). Check domain & callback URLs and try again.");
           setStatus("");
           return;
         }
 
-        // Optional: hydrate user object
+        // 2) Optional: hydrate user (nice-to-have)
         await getCurrentUser().catch(() => {});
 
+        // 3) Go to intended page
         setStatus("All set — taking you back…");
         window.location.replace(getNext());
       } catch (e: any) {
@@ -61,6 +62,7 @@ export default function LoginCallback() {
     })();
   }, [router.isReady, router]);
 
+  // Tiny debug overlay (?debug=1)
   const showDebug = router.query.debug === "1";
   const oauth = (amplifyConfig as any)?.Auth?.Cognito?.loginWith?.oauth || {};
   return (
