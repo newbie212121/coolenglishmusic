@@ -1,6 +1,7 @@
 // components/landing/PricingSection.tsx
 import { useState } from 'react';
 import { Check, Crown, Sparkles } from 'lucide-react';
+import { Auth } from 'aws-amplify';
 
 // Build a safe API URL once
 const BASE = (process.env.NEXT_PUBLIC_API_BASE || '').replace(/\/+$/, '');
@@ -14,30 +15,40 @@ export default function PricingSection() {
 
   const go = async (priceId: string) => {
     try {
-      if (!API_URL) {
-        throw new Error('API base URL is not configured.');
-      }
+      if (!API_URL) throw new Error('API base URL is not configured.');
       setLoading(priceId);
 
+      // 1) Require login and get Cognito ID token
+      let idToken = '';
+      try {
+        const session = await Auth.currentSession();
+        idToken = session.getIdToken().getJwtToken();
+      } catch {
+        alert('Login required');
+        setLoading('');
+        return;
+      }
+
+      // 2) Call API with the JWT (API Gateway authorizer will verify it)
       const res = await fetch(API_URL, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': idToken,
+        },
         body: JSON.stringify({ priceId }),
       });
 
-      // Read text first in case it's not JSON
       const text = await res.text();
       let data: any = undefined;
       try { data = JSON.parse(text); } catch {}
 
       if (!res.ok || !data?.url) {
-        // Bubble up the best message we have
         const msg = data?.message || text || `Checkout API error (HTTP ${res.status})`;
         throw new Error(msg);
       }
 
-      // Success → redirect to Stripe
-      window.location.href = data.url;
+      window.location.href = data.url; // Stripe hosted checkout
     } catch (e: any) {
       console.error('[pricing] checkout error:', e);
       alert(e?.message || 'Could not redirect to payment page.');
