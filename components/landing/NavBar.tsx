@@ -3,32 +3,25 @@
 
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
-import { signOut } from "aws-amplify/auth";
 
 export default function NavBar() {
-  const { isLoading, isAuthenticated, isMember } = useAuth();
+  const { isLoading, isAuthenticated, isMember, logout } = useAuth();
 
   const handleLogin = () => {
-    // This new logic remembers the current page and adds it to the login URL
     const next = encodeURIComponent(window.location.pathname + window.location.search);
     window.location.assign(`/login?next=${next}`);
   };
 
   const handleLogout = async () => {
-    // This new "bullet-proof" logout ensures everything resets
     try {
-      await signOut();
-    } catch (e) {
-      console.error("signOut failed", e);
+      await logout();               // ← use the context, not signOut()
     } finally {
-      // Hard reload guarantees a clean state
-      window.location.assign("/");
+      window.location.assign("/");  // hard reload for a clean UI
     }
   };
 
   const openPortal = () => {
-      // Placeholder for your Stripe Customer Portal logic
-      alert("Billing portal coming soon!");
+    alert("Billing portal coming soon!");
   };
 
   return (
@@ -45,7 +38,6 @@ export default function NavBar() {
           </div>
         </div>
 
-        {/* Right buttons */}
         <div className="flex items-center gap-3">
           {isLoading ? (
             <div className="h-8 w-24 rounded-full bg-gray-700 animate-pulse" />
@@ -74,7 +66,7 @@ export default function NavBar() {
           ) : (
             <>
               <button
-                onClick={() => window.location.assign('/pricing')}
+                onClick={() => window.location.assign("/pricing")}
                 className="px-4 py-2 rounded-full bg-green-500 text-black font-semibold hover:bg-green-400"
               >
                 Upgrade to Premium
