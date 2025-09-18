@@ -7,7 +7,7 @@ import { AuthProvider } from "@/context/AuthContext";
 import Layout from "@/components/Layout";
 import AuthGate from "@/components/AuthGate";
 
-Amplify.configure(amplifyConfig, { ssr: true });
+Amplify.configure(amplifyConfig);
 
 export default function App({ Component, pageProps }: AppProps) {
   return (
