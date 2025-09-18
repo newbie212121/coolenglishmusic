@@ -1,45 +1,49 @@
-// pages/test-grant.tsx   (or app/test-grant/page.tsx with "use client")
+// app/test-grant/page.tsx  (or pages/test-grant.tsx in pages router)
 "use client";
+
 import { useState } from "react";
 import { getCurrentUser, fetchAuthSession } from "aws-amplify/auth";
 
-const API = process.env.NEXT_PUBLIC_API_BASE!; // e.g. https://6nxfttx5yi.execute-api.us-east-1.amazonaws.com
+const API = process.env.NEXT_PUBLIC_API_BASE!; // e.g. https://api.coolenglishmusic.com
 
 export default function TestGrant() {
   const [msg, setMsg] = useState("");
 
   const run = async () => {
     try {
-      // 1) Ensure signed in (throws if not)
+      // 1) Ensure signed in
       await getCurrentUser();
 
-      // 2) Grab ID token
-      const { tokens } = await fetchAuthSession();
-      const idToken = tokens?.idToken?.toString();
-      if (!idToken) throw new Error("No ID token in session");
+      // 2) Get ID token
+      const session = await fetchAuthSession();
+      const idToken = session?.tokens?.idToken?.toString();
+      if (!idToken) throw new Error("No ID token in session.");
 
-      // 3) Call /grant (don’t auto-follow redirects so we can read Location)
+      // 3) Call grant; Lambda returns 200 + JSON {ok,next}
       const res = await fetch(`${API}/grant?prefix=Pure_WW/`, {
         method: "GET",
         headers: { Authorization: `Bearer ${idToken}` },
-        redirect: "manual",
+        mode: "cors",
+        credentials: "include", // receive CF cookies
+        cache: "no-store",
       });
 
-      if (res.status === 302) {
-        const loc = res.headers.get("Location");
-        if (loc) {
-          window.open(loc, "_blank");
-          setMsg("Opened activity in a new tab.");
-        } else {
-          setMsg("302 without Location header.");
-        }
+      if (!res.ok) {
+        const txt = await res.text();
+        setMsg(`Error ${res.status}: ${txt}`);
+        return;
+      }
+
+      const data = (await res.json()) as { ok?: boolean; next?: string };
+      setMsg(`200: ${JSON.stringify(data)}`);
+
+      if (data.next) {
+        window.location.assign(data.next);
       } else {
-        // show any error the Lambda returned
-        const text = await res.text();
-        setMsg(`${res.status}: ${text}`);
+        setMsg("200 OK but no next link in response.");
       }
     } catch (err: any) {
-      setMsg(`Error: ${err?.message || String(err)}`);
+      setMsg(`Auth or fetch error: ${err?.message ?? String(err)}`);
     }
   };
 

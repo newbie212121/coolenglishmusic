@@ -1,66 +1,135 @@
-// pages/members.tsx
+'use client';
+
 import { useEffect, useState } from 'react';
-import { signInWithRedirect } from 'aws-amplify/auth';
-import { getUserSub, getIdTokenString } from '@/lib/auth-helpers'; // if this alias fails, use: '../../lib/auth-helpers'
+import { fetchAuthSession } from 'aws-amplify/auth';
 
-type Status = 'loading' | 'out' | 'in';
+const BASE = (process.env.NEXT_PUBLIC_API_BASE || '').replace(/\/+$/, '');
+const STATUS_URL = `${BASE}/members/status`;
+const PORTAL_URL = `${BASE}/billing/portal`;
 
-export default function MembersPage() {
-  const [status, setStatus] = useState<Status>('loading');
-  const [userSub, setUserSub] = useState<string | null>(null);
+export default function Members() {
+  const [loading, setLoading] = useState(true);
+  const [active, setActive] = useState<boolean | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  // Helper to fetch the current ID token (JWT) or redirect to login
+  const getIdToken = async (): Promise<string | null> => {
+    try {
+      const session = await fetchAuthSession();
+      const idToken = session.tokens?.idToken?.toString() || null;
+      if (!idToken) {
+        window.location.href = '/login';
+        return null;
+      }
+      return idToken;
+    } catch {
+      window.location.href = '/login';
+      return null;
+    }
+  };
 
   useEffect(() => {
     (async () => {
+      const idToken = await getIdToken();
+      if (!idToken) return;
+
       try {
-        const [sub, token] = await Promise.all([getUserSub(), getIdTokenString()]);
-        if (!sub || !token) {
-          setStatus('out');
+        const res = await fetch(STATUS_URL, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            // Your API Gateway JWT authorizer is reading this header
+            Authorization: idToken, // (works with your setup; no Bearer prefix)
+          },
+        });
+
+        if (res.status === 401) {
+          window.location.href = '/login';
           return;
         }
-        setUserSub(sub);
-        setStatus('in');
-      } catch {
-        setStatus('out');
+
+        const data = await res.json().catch(() => ({} as any));
+        setActive(!!data.active);
+      } catch (e) {
+        console.error('[members] status error:', e);
+        setActive(false);
+      } finally {
+        setLoading(false);
       }
     })();
   }, []);
 
-  if (status === 'loading') {
-    return (
-      <main className="max-w-3xl mx-auto py-16 text-center text-neutral-200">
-        <h1 className="text-2xl font-semibold mb-2">Members</h1>
-        <p>Checking your session…</p>
-      </main>
-    );
+  const openBillingPortal = async () => {
+    setBusy(true);
+    try {
+      const idToken = await getIdToken();
+      if (!idToken) return;
+
+      const res = await fetch(PORTAL_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: idToken,
+        },
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert(err?.message || 'Could not open billing portal.');
+        return;
+      }
+
+      const data = await res.json();
+      if (data?.url) {
+        window.location.href = data.url;
+      } else {
+        alert('No portal URL returned.');
+      }
+    } catch (e) {
+      console.error('[members] portal error:', e);
+      alert('Could not open billing portal.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (loading) {
+    return <div className="p-8 text-white">Checking membership…</div>;
   }
 
-  if (status === 'out') {
+  if (!active) {
     return (
-      <main className="max-w-3xl mx-auto py-16 text-center text-neutral-200">
-        <h1 className="text-2xl font-semibold mb-4">Members</h1>
-        <p className="mb-6">Please log in to see the members-only content.</p>
-        <button
-          onClick={() => signInWithRedirect()}
-          className="spotify-green text-black font-semibold px-4 py-2 rounded-lg"
+      <div className="p-8 text-white">
+        <h1 className="text-3xl font-bold mb-4">Membership Required</h1>
+        <p className="mb-6 text-gray-300">
+          Your account doesn’t have an active subscription.
+        </p>
+        <a
+          href="/pricing"
+          className="inline-block px-6 py-3 rounded-full bg-green-400 text-black font-semibold"
         >
-          Log in
-        </button>
-      </main>
+          Go to Pricing
+        </a>
+      </div>
     );
   }
 
   return (
-    <main className="max-w-5xl mx-auto py-10 text-neutral-200">
-      <h1 className="text-2xl font-semibold mb-2">Welcome, member!</h1>
-      <p className="mb-6 text-sm text-neutral-400">
-        user id (sub): <code className="text-neutral-300">{userSub}</code>
+    <div className="p-8 text-white">
+      <h1 className="text-3xl font-bold mb-2">Welcome!</h1>
+      <p className="text-gray-300 mb-6">
+        Your subscription is active. Enjoy the activities 🎵
       </p>
-      <section className="rounded-xl border border-neutral-800 p-6">
-        <h2 className="text-xl font-semibold mb-3">Premium Content</h2>
-        <p className="text-neutral-300">
-          You're logged in. Replace this block with your members-only resources.
-        </p>
-      </section>
-    </main>
+
+      <button
+        onClick={openBillingPortal}
+        disabled={busy}
+        className="px-6 py-3 rounded-full bg-gray-800 text-white hover:bg-gray-700 disabled:opacity-60"
+      >
+        {busy ? 'Opening…' : 'Manage Billing'}
+      </button>
+
+      {/* TODO: render your activities grid here */}
+    </div>
   );
 }
