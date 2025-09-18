@@ -16,7 +16,8 @@ export default function LoginPage() {
   const { isAuthenticated, isLoading } = useAuth();
 
   useEffect(() => {
-    const next = (router.query.next as string) || "/activities";
+  if (!router.isReady) return;
+  const next = (router.query.next as string) || "/activities";
 
     // If we already have a session, just go where the user wanted.
     if (!isLoading && isAuthenticated) {
