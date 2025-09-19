@@ -3,59 +3,87 @@
 
 import { useState } from "react";
 import { useRouter } from "next/router";
-import { useAuth } from "@/context/AuthContext";
+import { getCurrentUser } from "aws-amplify/auth";
 
-const API_BASE = (process.env.NEXT_PUBLIC_API_BASE as string) || "";
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "https://api.coolenglishmusic.com";
+
+// Hardcoded price IDs
+const STRIPE_PRICE_IDS = {
+  monthly: "price_1S6I4wEWbhWs9Y6oRzBGIh8e",
+  annual: "price_1S6I5FEWbhWs9Y6oGs4CQEc2"
+};
 
 export default function PricingSection() {
   const router = useRouter();
-  const { isAuthenticated, getIdToken, isLoading } = useAuth();
-
   const [busy, setBusy] = useState<"monthly" | "annual" | null>(null);
 
   const goCheckout = async (plan: "monthly" | "annual") => {
-    // Require login first
-    if (!isAuthenticated) {
-      router.push(`/login?next=${encodeURIComponent("/pricing")}`);
-      return;
-    }
-
     setBusy(plan);
+    
     try {
-      // Try to get a token; if missing, retry once after a brief wait
-      let idToken = await getIdToken();
-      if (!idToken) {
-        await new Promise((r) => setTimeout(r, 250));
-        idToken = await getIdToken();
+      // Check if user is logged in
+      let isLoggedIn = false;
+      try {
+        await getCurrentUser();
+        isLoggedIn = true;
+      } catch {
+        // Not logged in
       }
-      if (!idToken) throw new Error("Could not get auth token.");
 
-      console.log(`[Checkout] Calling ${API_BASE}/billing/checkout`);
+      if (!isLoggedIn) {
+        // Save intended plan and redirect to login
+        sessionStorage.setItem("pendingPlan", plan);
+        sessionStorage.setItem("nextAfterLogin", "/pricing");
+        router.push("/login");
+        return;
+      }
+
+      // User is logged in, proceed with checkout
+      console.log(`Creating ${plan} checkout session...`);
       
-      const res = await fetch(`${API_BASE}/billing/checkout`, {
+      const requestBody = { 
+        priceId: STRIPE_PRICE_IDS[plan]
+      };
+      
+      console.log("Sending to Stripe:", requestBody);
+      
+      // Call the Lambda WITHOUT auth header (since Lambda is simplified)
+      const res = await fetch(`${API_BASE}/create-checkout-session`, {
         method: "POST",
         headers: { 
-          "Content-Type": "application/json", 
-          "Authorization": `Bearer ${idToken}`  // FIX: Add "Bearer " prefix
+          "Content-Type": "application/json"
         },
-        body: JSON.stringify({ plan }),
+        body: JSON.stringify(requestBody),
       });
 
       const data = await res.json().catch(() => ({}));
       
       if (res.ok && data?.url) {
+        console.log("Redirecting to Stripe checkout...");
         window.location.href = data.url;
       } else {
         console.error("Checkout failed:", res.status, data);
-        alert(data?.message || "Could not start checkout. Please try again.");
+        alert(data?.error || data?.message || "Could not start checkout. Please try again.");
       }
     } catch (e) {
       console.error("Checkout error:", e);
-      alert("An error occurred during checkout. Please try again.");
+      alert("An error occurred. Please try again.");
     } finally {
       setBusy(null);
     }
   };
+
+  // Check if there's a pending plan after login
+  useState(() => {
+    const pendingPlan = sessionStorage.getItem("pendingPlan") as "monthly" | "annual" | null;
+    if (pendingPlan) {
+      sessionStorage.removeItem("pendingPlan");
+      // Auto-trigger checkout after successful login
+      setTimeout(() => {
+        goCheckout(pendingPlan);
+      }, 500);
+    }
+  });
 
   return (
     <section className="py-16">
@@ -69,11 +97,16 @@ export default function PricingSection() {
             <p className="text-3xl font-bold text-white">$2</p>
             <p className="text-sm text-gray-400 mb-6">per month</p>
             <button
-              disabled={isLoading || busy !== null}
+              disabled={busy !== null}
               onClick={() => goCheckout("monthly")}
-              className="w-full px-4 py-2 rounded-full bg-green-500 text-black font-semibold hover:bg-green-400 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full px-4 py-2 rounded-full bg-green-500 text-black font-semibold hover:bg-green-400 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
             >
-              {busy === "monthly" ? "Processing..." : "Subscribe Monthly"}
+              {busy === "monthly" ? (
+                <span className="flex items-center justify-center">
+                  <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-black mr-2"></span>
+                  Processing...
+                </span>
+              ) : "Subscribe Monthly"}
             </button>
           </div>
 
@@ -83,11 +116,16 @@ export default function PricingSection() {
             <p className="text-3xl font-bold text-white">$15</p>
             <p className="text-sm text-gray-400 mb-6">per year (save 37%)</p>
             <button
-              disabled={isLoading || busy !== null}
+              disabled={busy !== null}
               onClick={() => goCheckout("annual")}
-              className="w-full px-4 py-2 rounded-full bg-emerald-600 text-white font-semibold hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full px-4 py-2 rounded-full bg-emerald-600 text-white font-semibold hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
             >
-              {busy === "annual" ? "Processing..." : "Subscribe Annual"}
+              {busy === "annual" ? (
+                <span className="flex items-center justify-center">
+                  <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></span>
+                  Processing...
+                </span>
+              ) : "Subscribe Annual"}
             </button>
           </div>
         </div>
