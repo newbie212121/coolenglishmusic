@@ -1,4 +1,4 @@
-// context/AuthContext.tsx
+// context/AuthContext.tsx --- DEBUGGING VERSION
 "use client";
 
 import { fetchAuthSession, getCurrentUser, signOut } from "aws-amplify/auth";
@@ -33,37 +33,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const checkMembership = async () => {
-    const idToken = await getIdToken();
-    if (!idToken) {
-      setIsMember(false);
-      return;
-    }
-    try {
-      const res = await fetch(STATUS_URL, { headers: { Authorization: idToken } });
-      if (res.ok) {
-        const data = await res.json().catch(() => ({}));
-        setIsMember(!!data.active);
-      } else {
-        setIsMember(false);
-        console.error("Membership check failed:", res.status);
-      }
-    } catch (error) {
-      setIsMember(false);
-      console.error("Error fetching membership status:", error);
-    }
-  };
-
   const refreshUserSession = async () => {
+    console.log("[AUTH DEBUG] 1. Starting session refresh...");
     setIsLoading(true);
     try {
+      console.log("[AUTH DEBUG] 2. Attempting to get current user from Cognito...");
       const cognitoUser = await getCurrentUser();
+      console.log(`[AUTH DEBUG] 3. Success! User found: ${cognitoUser.username}`);
       setUser({ username: cognitoUser.username });
-      await checkMembership();
+      
+      console.log("[AUTH DEBUG] 4. Checking membership status from API...");
+      const idToken = await getIdToken();
+      if (idToken) {
+        const res = await fetch(STATUS_URL, { headers: { Authorization: idToken } });
+        console.log(`[AUTH DEBUG] 5. API response status: ${res.status}`);
+        if (res.ok) {
+          const data = await res.json().catch(() => ({}));
+          setIsMember(!!data.active);
+          console.log(`[AUTH DEBUG] 6. Membership status set to: ${!!data.active}`);
+        } else {
+          setIsMember(false);
+        }
+      } else {
+        console.log("[AUTH DEBUG] No ID token found for membership check.");
+        setIsMember(false);
+      }
+
     } catch (error) {
+      console.error("[AUTH DEBUG] ERROR during user session refresh:", error);
       setUser(null);
       setIsMember(false);
     } finally {
+      console.log("[AUTH DEBUG] 7. Refresh finished. Setting isLoading to false.");
       setIsLoading(false);
     }
   };
@@ -71,6 +72,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     refreshUserSession();
     const unsubscribe = Hub.listen("auth", ({ payload }) => {
+      console.log(`[AUTH DEBUG] Hub event received: ${payload.event}`);
       if (payload.event === "signedIn" || payload.event === "tokenRefresh") {
         refreshUserSession();
       }
