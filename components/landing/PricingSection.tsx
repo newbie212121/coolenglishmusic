@@ -30,21 +30,28 @@ export default function PricingSection() {
       }
       if (!idToken) throw new Error("Could not get auth token.");
 
+      console.log(`[Checkout] Calling ${API_BASE}/billing/checkout`);
+      
       const res = await fetch(`${API_BASE}/billing/checkout`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: idToken },
+        headers: { 
+          "Content-Type": "application/json", 
+          "Authorization": `Bearer ${idToken}`  // FIX: Add "Bearer " prefix
+        },
         body: JSON.stringify({ plan }),
       });
 
       const data = await res.json().catch(() => ({}));
+      
       if (res.ok && data?.url) {
         window.location.href = data.url;
       } else {
-        alert(data?.message || "Could not start checkout.");
+        console.error("Checkout failed:", res.status, data);
+        alert(data?.message || "Could not start checkout. Please try again.");
       }
     } catch (e) {
       console.error("Checkout error:", e);
-      alert("An error occurred during checkout.");
+      alert("An error occurred during checkout. Please try again.");
     } finally {
       setBusy(null);
     }
@@ -64,9 +71,9 @@ export default function PricingSection() {
             <button
               disabled={isLoading || busy !== null}
               onClick={() => goCheckout("monthly")}
-              className="w-full px-4 py-2 rounded-full bg-green-500 text-black font-semibold hover:bg-green-400 disabled:opacity-50"
+              className="w-full px-4 py-2 rounded-full bg-green-500 text-black font-semibold hover:bg-green-400 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {busy === "monthly" ? "Processing…" : "Subscribe Monthly"}
+              {busy === "monthly" ? "Processing..." : "Subscribe Monthly"}
             </button>
           </div>
 
@@ -78,9 +85,9 @@ export default function PricingSection() {
             <button
               disabled={isLoading || busy !== null}
               onClick={() => goCheckout("annual")}
-              className="w-full px-4 py-2 rounded-full bg-emerald-600 text-white font-semibold hover:bg-emerald-500 disabled:opacity-50"
+              className="w-full px-4 py-2 rounded-full bg-emerald-600 text-white font-semibold hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {busy === "annual" ? "Processing…" : "Subscribe Annual"}
+              {busy === "annual" ? "Processing..." : "Subscribe Annual"}
             </button>
           </div>
         </div>
