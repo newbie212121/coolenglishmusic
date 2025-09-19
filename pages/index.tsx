@@ -1,17 +1,19 @@
 // pages/index.tsx
+import { useState } from 'react';
+import { useRouter } from 'next/router';
+import { getCurrentUser } from 'aws-amplify/auth';
 import HeroSection from '@/components/landing/HeroSection';
 import FreeActivities from '@/components/landing/FreeActivities';
 
 // Inline PricingSection component
 function SimplePricingSection() {
-  const router = require("next/router").useRouter();
-  const [loadingPlan, setLoadingPlan] = require("react").useState(null);
+  const router = useRouter();
+  const [loadingPlan, setLoadingPlan] = useState<"monthly" | "annual" | null>(null);
 
-  const handleSubscribe = async (plan) => {
+  const handleSubscribe = async (plan: "monthly" | "annual") => {
     setLoadingPlan(plan);
     
     try {
-      const { getCurrentUser } = await import("aws-amplify/auth");
       let isLoggedIn = false;
       try {
         await getCurrentUser();
