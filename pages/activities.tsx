@@ -90,78 +90,63 @@ export default function ActivitiesPage() {
     }
   };
 
-// pages/activities.tsx - Update just the handleActivityClick function
-// Keep all your existing imports and other code, just replace handleActivityClick
-
-const handleActivityClick = async (activity: Activity) => {
-  // Handle free activities
-  if (activity.isFree) {
-    const activityUrl = `${ACTIVITIES_DOMAIN}/${activity.s3Prefix}`;
-    window.open(activityUrl, '_blank');
-    return;
-  }
-
-  // Handle premium activities
-  if (!isAuthenticated) {
-    sessionStorage.setItem('redirectActivity', activity.id);
-    router.push('/login?next=/activities');
-    return;
-  }
-
-  if (!isMember) {
-    router.push('/pricing');
-    return;
-  }
-
-  // User is authenticated and has membership - grant access
-  try {
-    setStartingActivity(activity.id);
-    
-    // Extract the folder prefix from s3Prefix
-    // Remove 'index.html' if present and ensure it ends with /
-    let prefix = activity.s3Prefix;
-    if (prefix.includes('index.html')) {
-      prefix = prefix.replace('/index.html', '/').replace('index.html', '');
-    }
-    if (!prefix.endsWith('/')) {
-      prefix += '/';
-    }
-    
-    // Use the WORKING API route (same as test-grant page)
-    const response = await fetch(`/api/grant-access?prefix=${encodeURIComponent(prefix)}`, {
-      method: 'GET',
-      credentials: 'include', // Important: include cookies
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Failed to grant access');
+  // FIXED: Renamed from handleActivityClick to handleStartActivity
+  const handleStartActivity = async (activity: Activity) => {
+    // Handle free activities
+    if (activity.isFree) {
+      const activityUrl = `${ACTIVITIES_DOMAIN}/${activity.s3Prefix}`;
+      window.open(activityUrl, '_blank');
+      return;
     }
 
-    const data = await response.json();
+    // Handle premium activities
+    if (!isAuthenticated) {
+      sessionStorage.setItem('redirectActivity', activity.id);
+      router.push('/login?next=/activities');
+      return;
+    }
 
-    if (data.success && data.activityUrl) {
-      // Cookies have been set, now open the activity
-      // Small delay to ensure cookies are properly set
-      setTimeout(() => {
+    if (!isMember) {
+      router.push('/pricing');
+      return;
+    }
+
+    // User is authenticated and has membership - grant access
+    try {
+      setStartingActivity(activity.id);
+      
+      // Call our API route with the activity ID
+      const response = await fetch(`/api/grant-access?activityId=${activity.id}`, {
+        method: 'GET',
+        credentials: 'include', // Important: include cookies
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to grant access');
+      }
+
+      const data = await response.json();
+
+      if (data.success && data.activityUrl) {
+        // Cookies have been set, now open the activity
         window.open(data.activityUrl, '_blank');
-      }, 500);
-    } else {
-      throw new Error('Failed to get activity URL');
+      } else {
+        throw new Error('Failed to get activity URL');
+      }
+
+    } catch (error) {
+      console.error('Failed to start activity:', error);
+      setError(error instanceof Error ? error.message : 'Failed to start activity. Please try again.');
+    } finally {
+      setStartingActivity(null);
     }
+  };
 
-  } catch (error) {
-    console.error('Failed to start activity:', error);
-    setError(error instanceof Error ? error.message : 'Failed to start activity. Please try again.');
-  } finally {
-    setStartingActivity(null);
-  }
-};
-
-console.log("All activities before filtering:", activities);
-const freeActivities = activities.filter(a => a.isFree);
-const premiumActivities = activities.filter(a => !a.isFree);
-console.log("Free:", freeActivities, "Premium:", premiumActivities);
+  console.log("All activities before filtering:", activities);
+  const freeActivities = activities.filter(a => a.isFree);
+  const premiumActivities = activities.filter(a => !a.isFree);
+  console.log("Free:", freeActivities, "Premium:", premiumActivities);
 
   if (authLoading || loading) {
     return (
