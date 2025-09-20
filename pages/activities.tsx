@@ -137,9 +137,20 @@ export default function ActivitiesPage() {
 
       const data = await response.json();
       
-      if (data.success && data.activityUrl) {
-        window.open(data.activityUrl, '_blank');
-      } else if (data.requiresSubscription) {
+ if (data.success && data.activityUrl) {
+  // Manually set CloudFront cookies since API Gateway won't pass them
+  if (data.cookies) {
+    Object.entries(data.cookies).forEach(([name, value]) => {
+      document.cookie = `${name}=${value}; Path=/; Secure; SameSite=None; Max-Age=86400`;
+    });
+    
+    // Small delay to ensure cookies are set
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
+  
+  // Now open the activity
+  window.open(data.activityUrl, '_blank');
+} else if (data.requiresSubscription) {
         router.push("/pricing");
       } else {
         alert("Failed to start activity. Please try again.");
