@@ -123,16 +123,17 @@ export default function ActivitiesPage() {
       }
 
       // Call your grant endpoint
-      const response = await fetch(
-        `${API_BASE}/grant?activityId=${activity.id}`,
-        {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${idToken}`
-          },
-          credentials: 'include'
-        }
-      );
+     const response = await fetch(
+  `${API_BASE}/grant?activityId=${activity.id}&ajax=true`, // ADD ajax=true
+  {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${idToken}`
+    },
+    mode: 'cors',
+    credentials: 'include'
+  }
+);
 
       const data = await response.json();
       
