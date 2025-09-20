@@ -8,6 +8,7 @@ import { Play, Clock, Lock, Crown, Zap, Music2, Filter } from "lucide-react";
 
 // Use your actual API URL
 const API_BASE = "https://api.coolenglishmusic.com";
+const ACTIVITIES_DOMAIN = "https://activities.coolenglishmusic.com";
 
 interface Activity {
   id: string;
