@@ -42,14 +42,13 @@ export default function SetFreeActivities() {
     const newFreeStatus = activity.isFree === "true" ? "false" : "true";
     
     try {
-      const response = await fetch(`${API_BASE}/admin/update-activity`, {
+      // Use the existing update-activities endpoint
+      const response = await fetch(`${API_BASE}/admin/update-activities`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          id: activity.id,
-          updates: {
-            isFree: newFreeStatus
-          }
+          activityIds: [activity.id],
+          isFree: newFreeStatus
         })
       });
       

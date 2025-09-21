@@ -8,8 +8,8 @@ import {
   Video, 
   Mic, 
   Star, 
-  Clock, 
-  Users,
+  Heart, 
+  Share2, 
   Sparkles,
   TreePine,
   Baby,
@@ -59,16 +59,22 @@ export default function ActivitiesPage() {
     { value: "Vocals Only", label: "Vocals Only", icon: Zap, color: "bg-pink-500" }
   ];
 
-  // Expanded genres with more options
+  // Expanded genres with more options and colors
   const genres = [
     { value: "all", label: "All Genres", icon: Globe },
-    { value: "Pop", label: "Pop", icon: Sparkles },
-    { value: "Rock", label: "Rock", icon: Zap },
-    { value: "Country", label: "Country", icon: Music },
-    { value: "Hip-Hop", label: "Hip-Hop", icon: Mic },
-    { value: "Kids", label: "Kids", icon: Baby },
-    { value: "Holiday", label: "Holiday", icon: TreePine },
+    { value: "Pop", label: "Pop", icon: Sparkles, color: "bg-pink-500" },
+    { value: "Rock", label: "Rock", icon: Zap, color: "bg-red-500" },
+    { value: "Country", label: "Country", icon: Music, color: "bg-amber-500" },
+    { value: "Hip-Hop", label: "Hip-Hop", icon: Mic, color: "bg-purple-500" },
+    { value: "Kids", label: "Kids", icon: Baby, color: "bg-green-500" },
+    { value: "Holiday", label: "Holiday", icon: TreePine, color: "bg-blue-500" },
   ];
+  
+  // Helper to get genre color
+  const getGenreColor = (genre: string) => {
+    const genreConfig = genres.find(g => g.value === genre);
+    return genreConfig?.color || "bg-gray-500";
+  };
 
   useEffect(() => {
     fetchActivities();
@@ -352,8 +358,14 @@ export default function ActivitiesPage() {
                   }}
                 />
                 
-                {/* Badges */}
+                {/* Top Left Badges - Category/Genre */}
                 <div className="absolute top-2 left-2 flex gap-2">
+                  {/* Genre Badge with Color */}
+                  <span className={`px-2 py-1 ${getGenreColor(activity.genre)} text-white text-xs rounded-full font-medium`}>
+                    {activity.genre}
+                  </span>
+                  
+                  {/* Special Badges */}
                   {activity.isFree === "true" && (
                     <span className="px-2 py-1 bg-green-500 text-white text-xs rounded-full flex items-center gap-1">
                       <Star className="w-3 h-3" />
@@ -367,6 +379,33 @@ export default function ActivitiesPage() {
                       TOP 20
                     </span>
                   )}
+                </div>
+                
+                {/* Top Right Actions - Favorite and Share */}
+                <div className="absolute top-2 right-2 flex gap-2">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      // Favorite functionality coming soon
+                      alert("Favorites feature coming soon!");
+                    }}
+                    className="p-1.5 bg-black/50 backdrop-blur-sm rounded-full hover:bg-black/70 transition-all group"
+                    title="Add to favorites (Coming soon)"
+                  >
+                    <Heart className="w-4 h-4 text-white group-hover:text-red-500 transition-colors" />
+                  </button>
+                  
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      // Share functionality coming soon
+                      alert("Share feature coming soon!");
+                    }}
+                    className="p-1.5 bg-black/50 backdrop-blur-sm rounded-full hover:bg-black/70 transition-all group"
+                    title="Share activity (Coming soon)"
+                  >
+                    <Share2 className="w-4 h-4 text-white group-hover:text-blue-400 transition-colors" />
+                  </button>
                 </div>
 
                 {/* Play Button Overlay */}
@@ -394,13 +433,10 @@ export default function ActivitiesPage() {
                   {activity.artist}
                 </p>
                 
-                {/* Tags */}
-                <div className="flex flex-wrap gap-1 mb-3">
+                {/* Category Tag */}
+                <div className="flex items-center justify-between mb-3">
                   <span className="px-2 py-1 bg-gray-700 text-gray-300 text-xs rounded-full">
                     {activity.category}
-                  </span>
-                  <span className="px-2 py-1 bg-gray-700 text-gray-300 text-xs rounded-full">
-                    {activity.genre}
                   </span>
                 </div>
 
