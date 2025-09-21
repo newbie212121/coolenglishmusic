@@ -1,7 +1,8 @@
 // pages/activities.tsx
-import { getCurrentUser, fetchAuthSession } from "aws-amplify/auth";
+
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/router";
+import { getCurrentUser, fetchAuthSession } from "aws-amplify/auth";
 import { 
   Search, 
   Filter, 
@@ -171,7 +172,6 @@ export default function ActivitiesPage() {
     return filtered;
   }, [activities, searchQuery, selectedCategory, selectedGenre, showOnlyFree, sortBy]);
 
-import { getCurrentUser, fetchAuthSession } from "aws-amplify/auth";
 
 const handleStartActivity = async (activity: Activity) => {
   try {
