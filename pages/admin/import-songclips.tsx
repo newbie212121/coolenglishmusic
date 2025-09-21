@@ -20,7 +20,7 @@ export default function ImportSongClips() {
       const data = await response.json();
       setResults(data);
     } catch (error) {
-      setResults({ success: false, error: error.message });
+      setResults({ success: false, error: error instanceof Error ? error.message : 'Unknown error' });
     } finally {
       setLoading(false);
     }
