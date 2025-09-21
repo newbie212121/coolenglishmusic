@@ -1,4 +1,5 @@
 // pages/activities.tsx
+import { getCurrentUser, fetchAuthSession } from "aws-amplify/auth";
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/router";
 import { 
@@ -170,37 +171,74 @@ export default function ActivitiesPage() {
     return filtered;
   }, [activities, searchQuery, selectedCategory, selectedGenre, showOnlyFree, sortBy]);
 
-  const handleStartActivity = async (activity: Activity) => {
-    try {
-      // Use s3Key if available, otherwise use s3Prefix
+import { getCurrentUser, fetchAuthSession } from "aws-amplify/auth";
+
+const handleStartActivity = async (activity: Activity) => {
+  try {
+    // Free activities - just grant access
+    if (activity.isFree === "true") {
       const path = activity.s3Key || activity.s3Prefix;
       const response = await fetch(`/api/grant-access?prefix=${encodeURIComponent(path)}`);
       const data = await response.json();
       
       if (data.success && data.activityUrl) {
         window.open(data.activityUrl, '_blank');
-      } else if (data.error) {
-        // If access denied, redirect to pricing
-        if (activity.isFree !== "true") {
-          alert("Please subscribe to access premium activities");
-          router.push('/pricing');
-        } else {
-          alert("Error loading activity. The file may not exist at the expected location.");
-        }
       }
-    } catch (error) {
-      console.error("Error starting activity:", error);
-      alert("Error loading activity. Please try again.");
+      return;
     }
-  };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-b from-gray-900 to-black flex items-center justify-center">
-        <div className="text-white text-xl animate-pulse">Loading activities...</div>
-      </div>
-    );
+    
+    // Premium activities - check auth and subscription
+    try {
+      const user = await getCurrentUser();
+      const session = await fetchAuthSession();
+      const idToken = session?.tokens?.idToken?.toString();
+      
+      if (!idToken) {
+        alert("Please log in to access premium activities");
+        router.push('/login');
+        return;
+      }
+      
+      // Check subscription using same endpoint as check-sub.tsx
+      const response = await fetch('https://api.coolenglishmusic.com/check-subscription-status', {
+        headers: {
+          'Authorization': `Bearer ${idToken}`
+        }
+      });
+      
+      const data = await response.json();
+      
+      if (!data.isSubscribed) {
+        alert("Premium subscription required. Subscribe for just $2/month!");
+        router.push('/pricing');
+        return;
+      }
+      
+      // User has subscription, grant access
+      const path = activity.s3Key || activity.s3Prefix;
+      const accessResponse = await fetch(`/api/grant-access?prefix=${encodeURIComponent(path)}`, {
+        headers: {
+          'Authorization': `Bearer ${idToken}`
+        }
+      });
+      
+      const accessData = await accessResponse.json();
+      
+      if (accessData.success && accessData.activityUrl) {
+        window.open(accessData.activityUrl, '_blank');
+      }
+      
+    } catch (authError) {
+      // Not logged in
+      alert("Please log in to access premium activities");
+      router.push('/login');
+    }
+    
+  } catch (error) {
+    console.error("Error starting activity:", error);
+    alert("Error loading activity. Please try again.");
   }
+};
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-900 to-black">
