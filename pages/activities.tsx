@@ -35,7 +35,8 @@ interface Activity {
   isFree: string;
   tags?: string[];
   featured?: boolean;
-  yearLevel?: string;   // "K-2", "3-5", "6-8", "9-12"
+  createdAt?: number;    // Timestamp for sorting
+  updatedAt?: number;    // Timestamp
 }
 
 export default function ActivitiesPage() {
