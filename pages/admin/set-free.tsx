@@ -43,7 +43,7 @@ export default function SetFreeActivities() {
     
     try {
       // Use the existing update-activities endpoint
-      const response = await fetch(`${API_BASE}/update-activity`, {
+      const response = await fetch(`${API_BASE}/admin/update-activity`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
