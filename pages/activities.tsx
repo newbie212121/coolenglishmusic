@@ -1,411 +1,433 @@
 // pages/activities.tsx
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/router";
-import { useAuth } from "@/context/AuthContext";
-import { fetchAuthSession } from "aws-amplify/auth";
-import Image from "next/image";
-import { Play, Clock, Lock, Crown, Zap, Music2, Filter } from "lucide-react";
+import { 
+  Search, 
+  Filter, 
+  Music, 
+  Video, 
+  Mic, 
+  Star, 
+  Clock, 
+  Users,
+  Sparkles,
+  TreePine,
+  Baby,
+  Globe,
+  Zap,
+  TrendingUp,
+  Play,
+  Lock,
+  ChevronDown
+} from "lucide-react";
 
-// Use your actual API URL
-const API_BASE = "https://api.coolenglishmusic.com";
-const ACTIVITIES_DOMAIN = "https://activities.coolenglishmusic.com";
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "https://api.coolenglishmusic.com";
 
 interface Activity {
   id: string;
   title: string;
+  artist: string;
   description: string;
-  thumbnail: string;
   s3Prefix: string;
+  thumbnail: string;
   category: string;
   genre: string;
-  artist: string;
-  isFree: boolean;
-  tags: string[];
+  isFree: string;
+  tags?: string[];
   featured?: boolean;
-  order?: number;
-  createdAt: number;
-  updatedAt: number;
+  yearLevel?: string;   // "K-2", "3-5", "6-8", "9-12"
 }
 
 export default function ActivitiesPage() {
   const router = useRouter();
-  const { isAuthenticated, isMember, isLoading: authLoading } = useAuth();
   const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedCategory, setSelectedCategory] = useState("All Activities");
-  const [selectedGenre, setSelectedGenre] = useState("All Genres");
-  const [startingActivity, setStartingActivity] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("all");
+  const [selectedGenre, setSelectedGenre] = useState("all");
+  const [showOnlyFree, setShowOnlyFree] = useState(false);
+  const [sortBy, setSortBy] = useState("title"); // "title", "artist", "newest", "popular"
+  const [showFilters, setShowFilters] = useState(false);
 
-  const categories = ["All Activities", "Full Songs", "Song Clips"];
-  const genres = ["All Genres", "Pop", "Rock", "Country", "Hip-Hop"];
+  // Categories with icons and colors
+  const categories = [
+    { value: "all", label: "All Activities", icon: Globe, color: "bg-gray-500" },
+    { value: "Full Songs", label: "Full Songs", icon: Music, color: "bg-purple-500" },
+    { value: "Song Clips", label: "Song Clips", icon: Mic, color: "bg-blue-500" },
+    { value: "Top 20", label: "Top 20 Hits", icon: TrendingUp, color: "bg-yellow-500" },
+    { value: "Vocals Only", label: "Vocals Only", icon: Zap, color: "bg-pink-500" }
+  ];
+
+  // Expanded genres with more options
+  const genres = [
+    { value: "all", label: "All Genres", icon: Globe },
+    { value: "Pop", label: "Pop", icon: Sparkles },
+    { value: "Rock", label: "Rock", icon: Zap },
+    { value: "Country", label: "Country", icon: Music },
+    { value: "Hip-Hop", label: "Hip-Hop", icon: Mic },
+    { value: "Kids", label: "Kids", icon: Baby },
+    { value: "Holiday", label: "Holiday", icon: TreePine },
+  ];
 
   useEffect(() => {
     fetchActivities();
-  }, [selectedCategory, selectedGenre]);
+  }, []);
 
   const fetchActivities = async () => {
     try {
-      setLoading(true);
-      setError(null);
-      
-      const params = new URLSearchParams();
-      
-      if (selectedCategory !== "All Activities") {
-        params.append("category", selectedCategory);
-      }
-      if (selectedGenre !== "All Genres") {
-        params.append("genre", selectedGenre);
-      }
-
-      const url = params.toString() 
-        ? `${API_BASE}/activities?${params.toString()}`
-        : `${API_BASE}/activities`;
-
-      console.log("Fetching from:", url);
-
-      const response = await fetch(url, {
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
+      const response = await fetch(`${API_BASE}/activities`);
       const data = await response.json();
-      console.log("Activities data:", data);
       
-      if (data.success) {
-        setActivities(data.activities);
-      } else {
-        throw new Error(data.error || "Failed to fetch activities");
-      }
+      // Enhance activities with additional metadata
+      const enhancedActivities = data.activities.map((activity: Activity) => ({
+        ...activity,
+        // Check if it's a holiday or kids song and update genre if needed
+        genre: determineEnhancedGenre(activity)
+      }));
+      
+      setActivities(enhancedActivities);
     } catch (error) {
-      console.error("Failed to fetch activities:", error);
-      setError("Failed to load activities. Please try again later.");
+      console.error("Error fetching activities:", error);
     } finally {
       setLoading(false);
     }
   };
 
-  // FIXED: Renamed from handleActivityClick to handleStartActivity
+  const determineEnhancedGenre = (activity: Activity): string => {
+    const title = activity.title.toLowerCase();
+    const artist = activity.artist.toLowerCase();
+    
+    // Check for holiday songs
+    if (title.includes("christmas") || title.includes("halloween") || 
+        title.includes("thanksgiving") || title.includes("holiday")) {
+      return "Holiday";
+    }
+    
+    // Check for kids songs
+    if (title.includes("kids") || title.includes("children") || 
+        artist.includes("kids") || artist.includes("disney")) {
+      return "Kids";
+    }
+    
+    // Return original genre
+    return activity.genre;
+  };
+
+  // Advanced filtering logic
+  const filteredActivities = useMemo(() => {
+    let filtered = [...activities];
+
+    // Search filter (searches title, artist, description, and tags)
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(activity => 
+        activity.title.toLowerCase().includes(query) ||
+        activity.artist.toLowerCase().includes(query) ||
+        activity.description.toLowerCase().includes(query) ||
+        activity.tags?.some(tag => tag.toLowerCase().includes(query))
+      );
+    }
+
+    // Category filter
+    if (selectedCategory !== "all") {
+      filtered = filtered.filter(activity => activity.category === selectedCategory);
+    }
+
+    // Genre filter
+    if (selectedGenre !== "all") {
+      filtered = filtered.filter(activity => activity.genre === selectedGenre);
+    }
+
+    // Free only filter
+    if (showOnlyFree) {
+      filtered = filtered.filter(activity => activity.isFree === "true");
+    }
+
+    // Sorting
+    filtered.sort((a, b) => {
+      switch (sortBy) {
+        case "artist":
+          return a.artist.localeCompare(b.artist);
+        case "newest":
+          return (b.createdAt || 0) - (a.createdAt || 0);
+        case "popular":
+          // You could add a popularity metric here
+          return 0;
+        case "title":
+        default:
+          return a.title.localeCompare(b.title);
+      }
+    });
+
+    return filtered;
+  }, [activities, searchQuery, selectedCategory, selectedGenre, showOnlyFree, sortBy]);
+
   const handleStartActivity = async (activity: Activity) => {
-    // Handle free activities
-    if (activity.isFree) {
-      const activityUrl = `${ACTIVITIES_DOMAIN}/${activity.s3Prefix}`;
-      window.open(activityUrl, '_blank');
-      return;
-    }
-
-    // Handle premium activities
-    if (!isAuthenticated) {
-      sessionStorage.setItem('redirectActivity', activity.id);
-      router.push('/login?next=/activities');
-      return;
-    }
-
-    if (!isMember) {
-      router.push('/pricing');
-      return;
-    }
-
-    // User is authenticated and has membership - grant access
-    try {
-      setStartingActivity(activity.id);
-      
-      // Call our API route with the activity ID
-      const response = await fetch(`/api/grant-access?activityId=${activity.id}`, {
-        method: 'GET',
-        credentials: 'include', // Important: include cookies
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to grant access');
+    if (activity.isFree === "true") {
+      // Free activity - grant access directly
+      try {
+        const response = await fetch(`/api/grant-access?prefix=${encodeURIComponent(activity.s3Prefix)}`);
+        const data = await response.json();
+        
+        if (data.success && data.activityUrl) {
+          window.open(data.activityUrl, '_blank');
+        }
+      } catch (error) {
+        console.error("Error starting activity:", error);
       }
-
-      const data = await response.json();
-
-      if (data.success && data.activityUrl) {
-        // Cookies have been set, now open the activity
-        window.open(data.activityUrl, '_blank');
-      } else {
-        throw new Error('Failed to get activity URL');
-      }
-
-    } catch (error) {
-      console.error('Failed to start activity:', error);
-      setError(error instanceof Error ? error.message : 'Failed to start activity. Please try again.');
-    } finally {
-      setStartingActivity(null);
+    } else {
+      // Premium activity - check subscription
+      router.push(`/activity/${activity.id}`);
     }
   };
 
-  console.log("All activities before filtering:", activities);
-  const freeActivities = activities.filter(a => a.isFree);
-  const premiumActivities = activities.filter(a => !a.isFree);
-  console.log("Free:", freeActivities, "Premium:", premiumActivities);
-
-  if (authLoading || loading) {
+  if (loading) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="text-white">Loading activities...</div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-red-500 mb-4">{error}</p>
-          <button 
-            onClick={fetchActivities} 
-            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-500"
-          >
-            Try Again
-          </button>
-        </div>
+      <div className="min-h-screen bg-gradient-to-b from-gray-900 to-black flex items-center justify-center">
+        <div className="text-white text-xl animate-pulse">Loading activities...</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-black pt-8 pb-16">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <h1 className="text-3xl md:text-4xl font-bold text-white mb-2">
-          Music Activities
-        </h1>
-        <p className="text-gray-400 mb-8">
-          Explore our collection of interactive English learning activities
-        </p>
-
-        {/* Filters */}
-        <div className="bg-gray-900/50 backdrop-blur border border-gray-800 rounded-xl p-6 mb-10">
-          <div className="flex items-center gap-2 mb-4">
-            <Filter className="w-4 h-4 text-green-500" />
-            <h3 className="text-sm font-semibold text-white uppercase tracking-wider">
-              Filter Activities
-            </h3>
+    <div className="min-h-screen bg-gradient-to-b from-gray-900 to-black">
+      {/* Header with Search */}
+      <div className="sticky top-0 z-40 bg-gray-900/95 backdrop-blur-sm border-b border-white/10">
+        <div className="max-w-7xl mx-auto px-4 py-4">
+          {/* Search Bar */}
+          <div className="relative mb-4">
+            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+            <input
+              type="text"
+              placeholder="Search by song, artist, or keyword..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-12 pr-4 py-3 bg-gray-800 text-white rounded-full 
+                       border border-white/20 focus:border-green-500 focus:outline-none
+                       placeholder-gray-400 transition-all"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery("")}
+                className="absolute right-4 top-1/2 transform -translate-y-1/2 
+                         text-gray-400 hover:text-white transition-colors"
+              >
+                ✕
+              </button>
+            )}
           </div>
-          
-          <div className="space-y-4">
-            <div>
-              <label className="text-xs text-gray-500 uppercase tracking-wider mb-2 block">
-                Category
-              </label>
-              <div className="flex flex-wrap gap-2">
-                {categories.map((cat) => (
+
+          {/* Quick Filters Bar */}
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Category Pills */}
+            <div className="flex flex-wrap gap-2">
+              {categories.map(cat => {
+                const Icon = cat.icon;
+                return (
                   <button
-                    key={cat}
-                    onClick={() => setSelectedCategory(cat)}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                      cat === selectedCategory
-                        ? "bg-green-600 text-white shadow-lg shadow-green-600/20"
-                        : "bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white"
-                    }`}
+                    key={cat.value}
+                    onClick={() => setSelectedCategory(cat.value)}
+                    className={`px-4 py-2 rounded-full flex items-center gap-2 transition-all
+                              ${selectedCategory === cat.value 
+                                ? `${cat.color} text-white shadow-lg` 
+                                : 'bg-gray-800 text-gray-300 hover:bg-gray-700'}`}
                   >
-                    {cat}
+                    <Icon className="w-4 h-4" />
+                    <span className="text-sm font-medium">{cat.label}</span>
                   </button>
-                ))}
-              </div>
+                );
+              })}
             </div>
 
-            <div>
-              <label className="text-xs text-gray-500 uppercase tracking-wider mb-2 block">
-                Genre
-              </label>
-              <div className="flex flex-wrap gap-2">
-                {genres.map((genre) => (
-                  <button
-                    key={genre}
-                    onClick={() => setSelectedGenre(genre)}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                      genre === selectedGenre
-                        ? "bg-gray-700 text-white"
-                        : "text-gray-400 hover:text-white hover:bg-gray-800/50"
-                    }`}
-                  >
-                    {genre}
-                  </button>
-                ))}
-              </div>
-            </div>
+            {/* Toggle Advanced Filters */}
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className="ml-auto px-4 py-2 bg-gray-800 text-gray-300 rounded-full 
+                       hover:bg-gray-700 transition-all flex items-center gap-2"
+            >
+              <Filter className="w-4 h-4" />
+              <span>Filters</span>
+              <ChevronDown className={`w-4 h-4 transition-transform ${showFilters ? 'rotate-180' : ''}`} />
+            </button>
           </div>
-        </div>
 
-        {activities.length === 0 ? (
-          <div className="text-center py-12">
-            <Music2 className="w-12 h-12 text-gray-600 mx-auto mb-4" />
-            <p className="text-gray-400">No activities found for the selected filters.</p>
-          </div>
-        ) : (
-          <>
-            {/* Free Activities */}
-            {freeActivities.length > 0 && (
-              <div className="mb-12">
-                <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
-                  <Zap className="w-5 h-5 text-yellow-500" />
-                  Free Activities
-                </h2>
-                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {freeActivities.map((activity) => (
-                    <ActivityCard
-                      key={activity.id}
-                      activity={activity}
-                      onStart={handleStartActivity}
-                      isStarting={startingActivity === activity.id}
-                      isFree={true}
-                      isLocked={false}
+          {/* Advanced Filters Panel */}
+          {showFilters && (
+            <div className="mt-4 p-4 bg-gray-800/50 rounded-xl border border-white/10">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                {/* Genre Filter */}
+                <div>
+                  <label className="text-xs text-gray-400 mb-1 block">Genre</label>
+                  <select
+                    value={selectedGenre}
+                    onChange={(e) => setSelectedGenre(e.target.value)}
+                    className="w-full px-3 py-2 bg-gray-700 text-white rounded-lg 
+                             border border-white/20 focus:border-green-500 focus:outline-none"
+                  >
+                    {genres.map(genre => (
+                      <option key={genre.value} value={genre.value}>{genre.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Sort By */}
+                <div>
+                  <label className="text-xs text-gray-400 mb-1 block">Sort By</label>
+                  <select
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value)}
+                    className="w-full px-3 py-2 bg-gray-700 text-white rounded-lg 
+                             border border-white/20 focus:border-green-500 focus:outline-none"
+                  >
+                    <option value="title">Title A-Z</option>
+                    <option value="artist">Artist A-Z</option>
+                    <option value="newest">Newest First</option>
+                    <option value="popular">Most Popular</option>
+                  </select>
+                </div>
+
+                {/* Free Only Checkbox */}
+                <div className="flex items-end">
+                  <label className="flex items-center gap-2 text-white cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={showOnlyFree}
+                      onChange={(e) => setShowOnlyFree(e.target.checked)}
+                      className="w-4 h-4 rounded bg-gray-700 border-gray-600 
+                               text-green-500 focus:ring-green-500"
                     />
-                  ))}
+                    <span className="text-sm">Free Activities Only</span>
+                  </label>
                 </div>
               </div>
-            )}
+            </div>
+          )}
+        </div>
+      </div>
 
-            {/* Premium Activities */}
-            {premiumActivities.length > 0 && (
-              <div>
-                <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
-                  <Crown className="w-5 h-5 text-yellow-500" />
-                  Premium Activities
-                  {!isMember && (
-                    <span className="text-sm font-normal text-gray-400 ml-2">
-                      (Upgrade to access)
+      {/* Results Summary */}
+      <div className="max-w-7xl mx-auto px-4 py-4">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-semibold text-white">
+            {searchQuery ? `Search Results (${filteredActivities.length})` : 
+             selectedCategory !== "all" ? `${selectedCategory} (${filteredActivities.length})` :
+             `All Activities (${filteredActivities.length})`}
+          </h2>
+          {(searchQuery || selectedCategory !== "all" || selectedGenre !== "all") && (
+            <button
+              onClick={() => {
+                setSearchQuery("");
+                setSelectedCategory("all");
+                setSelectedGenre("all");
+                setShowOnlyFree(false);
+              }}
+              className="text-sm text-gray-400 hover:text-white transition-colors"
+            >
+              Clear all filters
+            </button>
+          )}
+        </div>
+
+        {/* Activities Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {filteredActivities.map((activity) => (
+            <div
+              key={activity.id}
+              className="bg-gray-800/50 backdrop-blur-sm rounded-xl overflow-hidden 
+                       border border-white/10 hover:border-green-500/50 
+                       transform hover:scale-105 transition-all duration-300
+                       hover:shadow-xl hover:shadow-green-500/20"
+            >
+              {/* Thumbnail with badges */}
+              <div className="relative aspect-video bg-gradient-to-br from-purple-600 to-blue-600">
+                <img
+                  src={activity.thumbnail}
+                  alt={activity.title}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none';
+                  }}
+                />
+                
+                {/* Badges */}
+                <div className="absolute top-2 left-2 flex gap-2">
+                  {activity.isFree === "true" && (
+                    <span className="px-2 py-1 bg-green-500 text-white text-xs rounded-full flex items-center gap-1">
+                      <Star className="w-3 h-3" />
+                      FREE
                     </span>
                   )}
-                </h2>
-                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {premiumActivities.map((activity) => (
-                    <ActivityCard
-                      key={activity.id}
-                      activity={activity}
-                      onStart={handleStartActivity}
-                      isStarting={startingActivity === activity.id}
-                      isFree={false}
-                      isLocked={!isMember}
-                    />
-                  ))}
+                  
+                  {activity.category === "Top 20" && (
+                    <span className="px-2 py-1 bg-yellow-500 text-white text-xs rounded-full flex items-center gap-1">
+                      <TrendingUp className="w-3 h-3" />
+                      TOP 20
+                    </span>
+                  )}
+                </div>
+
+                {/* Play Button Overlay */}
+                <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 
+                              bg-black/50 transition-opacity">
+                  <button
+                    onClick={() => handleStartActivity(activity)}
+                    className="p-4 bg-green-500 rounded-full hover:bg-green-400 
+                             transform hover:scale-110 transition-all shadow-lg"
+                  >
+                    {activity.isFree === "false" ? 
+                      <Lock className="w-6 h-6 text-white" /> : 
+                      <Play className="w-6 h-6 text-white" />
+                    }
+                  </button>
                 </div>
               </div>
-            )}
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
 
-// Activity Card Component
-function ActivityCard({ 
-  activity, 
-  onStart, 
-  isStarting, 
-  isFree, 
-  isLocked = false 
-}: {
-  activity: Activity;
-  onStart: (activity: Activity) => void;
-  isStarting: boolean;
-  isFree: boolean;
-  isLocked?: boolean;
-}) {
-  return (
-    <div className="group bg-gray-900/50 backdrop-blur border border-gray-800 rounded-xl overflow-hidden hover:bg-gray-900/70 transition-all hover:border-gray-700">
-      <div className="relative h-48 bg-gradient-to-br from-gray-800 to-gray-900">
-        {activity.thumbnail ? (
-          <Image
-            src={activity.thumbnail}
-            alt={activity.title}
-            fill
-            className="object-cover opacity-90 group-hover:opacity-100 transition"
-          />
-        ) : (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <Music2 className="w-16 h-16 text-gray-700" />
-          </div>
-        )}
-        
-        <div className="absolute top-3 left-3">
-          {isFree ? (
-            <span className="bg-green-500 text-black text-xs font-bold px-2.5 py-1 rounded">
-              FREE
-            </span>
-          ) : (
-            <span className="bg-gradient-to-r from-yellow-500 to-amber-600 text-black text-xs font-bold px-2.5 py-1 rounded">
-              PREMIUM
-            </span>
-          )}
-        </div>
-        
-        <div className="absolute top-3 right-3">
-          <span className="bg-black/50 backdrop-blur text-white text-xs px-2.5 py-1 rounded">
-            {activity.genre}
-          </span>
-        </div>
-        
-        {activity.featured && (
-          <div className="absolute bottom-3 left-3">
-            <span className="bg-purple-600/80 backdrop-blur text-white text-xs px-2.5 py-1 rounded">
-              Featured
-            </span>
-          </div>
-        )}
-        
-        {isLocked && (
-          <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-            <Lock className="w-8 h-8 text-gray-400" />
-          </div>
-        )}
-      </div>
+              {/* Content */}
+              <div className="p-4">
+                <h3 className="font-semibold text-white mb-1 line-clamp-1">
+                  {activity.title}
+                </h3>
+                <p className="text-sm text-gray-400 mb-2 line-clamp-1">
+                  {activity.artist}
+                </p>
+                
+                {/* Tags */}
+                <div className="flex flex-wrap gap-1 mb-3">
+                  <span className="px-2 py-1 bg-gray-700 text-gray-300 text-xs rounded-full">
+                    {activity.category}
+                  </span>
+                  <span className="px-2 py-1 bg-gray-700 text-gray-300 text-xs rounded-full">
+                    {activity.genre}
+                  </span>
+                </div>
 
-      <div className="p-5">
-        <h3 className="font-semibold text-white mb-1 group-hover:text-green-400 transition">
-          {activity.title}
-        </h3>
-        <p className="text-xs text-gray-500 mb-2">{activity.artist}</p>
-        <p className="text-gray-400 text-sm mb-4 line-clamp-2">
-          {activity.description}
-        </p>
-        
-        <div className="flex items-center gap-3 text-xs text-gray-500 mb-4">
-          <span className="bg-gray-800 px-2 py-1 rounded">
-            {activity.category}
-          </span>
-          {activity.tags && activity.tags.length > 0 && (
-            <span className="text-gray-600">
-              {activity.tags.slice(0, 2).join(", ")}
-            </span>
-          )}
+                {/* Action Button */}
+                <button
+                  onClick={() => handleStartActivity(activity)}
+                  className={`w-full py-2 rounded-lg font-medium transition-all
+                    ${activity.isFree === "true" 
+                      ? 'bg-green-500 hover:bg-green-400 text-white' 
+                      : 'bg-gray-700 hover:bg-gray-600 text-gray-300'}`}
+                >
+                  {activity.isFree === "true" ? 'Play Free' : 'Premium Activity'}
+                </button>
+              </div>
+            </div>
+          ))}
         </div>
 
-        <button
-          onClick={() => onStart(activity)}
-          disabled={isStarting}
-          className={`w-full py-2.5 font-medium rounded-lg transition flex items-center justify-center gap-2 ${
-            isLocked
-              ? "bg-gray-700 text-gray-400 cursor-not-allowed"
-              : isStarting
-              ? "bg-gray-600 text-gray-300"
-              : "bg-green-600 text-white hover:bg-green-500"
-          }`}
-        >
-          {isStarting ? (
-            <>Loading...</>
-          ) : isLocked ? (
-            <>
-              <Lock className="w-4 h-4" />
-              Unlock with Premium
-            </>
-          ) : (
-            <>
-              <Play className="w-4 h-4" />
-              Start Activity
-            </>
-          )}
-        </button>
+        {/* Empty State */}
+        {filteredActivities.length === 0 && (
+          <div className="text-center py-12">
+            <Music className="w-16 h-16 text-gray-600 mx-auto mb-4" />
+            <h3 className="text-xl font-semibold text-gray-400 mb-2">
+              No activities found
+            </h3>
+            <p className="text-gray-500">
+              Try adjusting your filters or search query
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );
