@@ -29,6 +29,7 @@ interface Activity {
   artist: string;
   description: string;
   s3Prefix: string;
+  s3Key?: string;       // Full S3 key to the actual HTML file
   thumbnail: string;
   category: string;
   genre: string;
@@ -171,8 +172,9 @@ export default function ActivitiesPage() {
 
   const handleStartActivity = async (activity: Activity) => {
     try {
-      // Always grant access through the API - it will handle subscription checking
-      const response = await fetch(`/api/grant-access?prefix=${encodeURIComponent(activity.s3Prefix)}`);
+      // Use s3Key if available, otherwise use s3Prefix
+      const path = activity.s3Key || activity.s3Prefix;
+      const response = await fetch(`/api/grant-access?prefix=${encodeURIComponent(path)}`);
       const data = await response.json();
       
       if (data.success && data.activityUrl) {
@@ -182,6 +184,8 @@ export default function ActivitiesPage() {
         if (activity.isFree !== "true") {
           alert("Please subscribe to access premium activities");
           router.push('/pricing');
+        } else {
+          alert("Error loading activity. The file may not exist at the expected location.");
         }
       }
     } catch (error) {
@@ -382,7 +386,7 @@ export default function ActivitiesPage() {
                 </div>
                 
                 {/* Top Right Actions - Favorite and Share */}
-                <div className="absolute top-2 right-2 flex gap-2">
+                <div className="absolute top-2 right-2 flex gap-2 z-20">
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
