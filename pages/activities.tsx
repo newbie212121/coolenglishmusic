@@ -164,21 +164,23 @@ export default function ActivitiesPage() {
   }, [activities, searchQuery, selectedCategory, selectedGenre, showOnlyFree, sortBy]);
 
   const handleStartActivity = async (activity: Activity) => {
-    if (activity.isFree === "true") {
-      // Free activity - grant access directly
-      try {
-        const response = await fetch(`/api/grant-access?prefix=${encodeURIComponent(activity.s3Prefix)}`);
-        const data = await response.json();
-        
-        if (data.success && data.activityUrl) {
-          window.open(data.activityUrl, '_blank');
+    try {
+      // Always grant access through the API - it will handle subscription checking
+      const response = await fetch(`/api/grant-access?prefix=${encodeURIComponent(activity.s3Prefix)}`);
+      const data = await response.json();
+      
+      if (data.success && data.activityUrl) {
+        window.open(data.activityUrl, '_blank');
+      } else if (data.error) {
+        // If access denied, redirect to pricing
+        if (activity.isFree !== "true") {
+          alert("Please subscribe to access premium activities");
+          router.push('/pricing');
         }
-      } catch (error) {
-        console.error("Error starting activity:", error);
       }
-    } else {
-      // Premium activity - check subscription
-      router.push(`/activity/${activity.id}`);
+    } catch (error) {
+      console.error("Error starting activity:", error);
+      alert("Error loading activity. Please try again.");
     }
   };
 
