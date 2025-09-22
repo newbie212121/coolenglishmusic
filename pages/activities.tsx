@@ -19,7 +19,8 @@ import {
   TrendingUp,
   Play,
   Lock,
-  ChevronDown
+  ChevronDown,
+  Gift
 } from "lucide-react";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "https://api.coolenglishmusic.com";
@@ -63,9 +64,9 @@ export default function ActivitiesPage() {
     { value: "Vocals Only", label: "Vocals Only", icon: Zap, color: "bg-pink-500" }
   ];
 
-  // Expanded genres with more options and colors
+  // Genres with icons and colors
   const genres = [
-    { value: "all", label: "All Genres", icon: Globe },
+    { value: "all", label: "All Genres", icon: Globe, color: "bg-gray-500" },
     { value: "Pop", label: "Pop", icon: Sparkles, color: "bg-pink-500" },
     { value: "Rock", label: "Rock", icon: Zap, color: "bg-red-500" },
     { value: "Country", label: "Country", icon: Music, color: "bg-amber-500" },
@@ -79,6 +80,14 @@ export default function ActivitiesPage() {
     const genreConfig = genres.find(g => g.value === genre);
     return genreConfig?.color || "bg-gray-500";
   };
+
+  // Check for URL parameters on mount (for filtering from home page)
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('free') === 'true') {
+      setShowOnlyFree(true);
+    }
+  }, []);
 
   // Check user subscription status on mount
   useEffect(() => {
@@ -193,17 +202,20 @@ export default function ActivitiesPage() {
     return filtered;
   }, [activities, searchQuery, selectedCategory, selectedGenre, showOnlyFree, sortBy]);
 
-  // Handle activity click with proper redirects
+  // FIXED: Handle activity click with proper redirects
   const handleStartActivity = async (activity: Activity) => {
     try {
       const path = activity.s3Key || activity.s3Prefix;
       
       let headers: any = {};
+      let hasAuth = false;
+      
       try {
         const session = await fetchAuthSession();
         const idToken = session?.tokens?.idToken?.toString();
         if (idToken) {
           headers['Authorization'] = `Bearer ${idToken}`;
+          hasAuth = true;
         }
       } catch (e) {
         console.log("No auth session");
@@ -213,21 +225,36 @@ export default function ActivitiesPage() {
         headers
       });
       
+      if (!response.ok) {
+        console.error("Grant access failed with status:", response.status);
+        if (!hasAuth) {
+          router.push('/signup');
+        } else {
+          router.push('/pricing');
+        }
+        return;
+      }
+      
       const data = await response.json();
+      console.log("Grant response:", data);
       
       if (data.success && data.activityUrl) {
         window.open(data.activityUrl, '_blank');
       } else if (data.error === 'authentication_required') {
-        // Not logged in - redirect to signup
         router.push('/signup');
       } else if (data.error === 'subscription_required') {
-        // Logged in but no subscription - redirect to pricing
         router.push('/pricing');
       } else {
-        console.error("Activity error:", data);
+        // Fallback redirects
+        if (!hasAuth) {
+          router.push('/signup');
+        } else {
+          router.push('/pricing');
+        }
       }
     } catch (error) {
       console.error("Error starting activity:", error);
+      router.push('/signup');
     }
   };
 
@@ -259,84 +286,87 @@ export default function ActivitiesPage() {
             )}
           </div>
 
-          {/* Quick Filters Bar */}
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex flex-wrap gap-2">
-              {categories.map(cat => {
-                const Icon = cat.icon;
-                return (
-                  <button
-                    key={cat.value}
-                    onClick={() => setSelectedCategory(cat.value)}
-                    className={`px-4 py-2 rounded-full flex items-center gap-2 transition-all
-                              ${selectedCategory === cat.value 
-                                ? `${cat.color} text-white shadow-lg` 
-                                : 'bg-gray-800 text-gray-300 hover:bg-gray-700'}`}
-                  >
-                    <Icon className="w-4 h-4" />
-                    <span className="text-sm font-medium">{cat.label}</span>
-                  </button>
-                );
-              })}
-            </div>
+          {/* Category Pills with Free Activities Filter */}
+          <div className="flex flex-wrap items-center gap-2 mb-3">
+            {/* Free Activities Toggle - Prominent Position */}
+            <button
+              onClick={() => setShowOnlyFree(!showOnlyFree)}
+              className={`px-4 py-2 rounded-full flex items-center gap-2 transition-all font-medium
+                        ${showOnlyFree 
+                          ? 'bg-green-500 text-white shadow-lg shadow-green-500/30' 
+                          : 'bg-gray-800 text-gray-300 hover:bg-gray-700 border border-green-500/30'}`}
+            >
+              <Gift className="w-4 h-4" />
+              <span>Free Activities</span>
+              {showOnlyFree && <span className="text-xs">({activities.filter(a => a.isFree === "true").length})</span>}
+            </button>
 
+            {/* Category Pills */}
+            {categories.map(cat => {
+              const Icon = cat.icon;
+              return (
+                <button
+                  key={cat.value}
+                  onClick={() => setSelectedCategory(cat.value)}
+                  className={`px-4 py-2 rounded-full flex items-center gap-2 transition-all
+                            ${selectedCategory === cat.value 
+                              ? `${cat.color} text-white shadow-lg` 
+                              : 'bg-gray-800 text-gray-300 hover:bg-gray-700'}`}
+                >
+                  <Icon className="w-4 h-4" />
+                  <span className="text-sm font-medium">{cat.label}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Genre Pills - Second Row */}
+          <div className="flex flex-wrap items-center gap-2 mb-3">
+            <span className="text-xs text-gray-400 mr-2">GENRES:</span>
+            {genres.map(genre => {
+              const Icon = genre.icon;
+              return (
+                <button
+                  key={genre.value}
+                  onClick={() => setSelectedGenre(genre.value)}
+                  className={`px-3 py-1.5 rounded-full flex items-center gap-1.5 transition-all text-sm
+                            ${selectedGenre === genre.value 
+                              ? `${genre.color} text-white shadow-lg` 
+                              : 'bg-gray-800/70 text-gray-400 hover:bg-gray-700'}`}
+                >
+                  <Icon className="w-3.5 h-3.5" />
+                  <span>{genre.label}</span>
+                </button>
+              );
+            })}
+
+            {/* Sort Options - Moved to Genre Row */}
             <button
               onClick={() => setShowFilters(!showFilters)}
-              className="ml-auto px-4 py-2 bg-gray-800 text-gray-300 rounded-full 
-                       hover:bg-gray-700 transition-all flex items-center gap-2"
+              className="ml-auto px-3 py-1.5 bg-gray-800/70 text-gray-400 rounded-full 
+                       hover:bg-gray-700 transition-all flex items-center gap-2 text-sm"
             >
-              <Filter className="w-4 h-4" />
-              <span>Filters</span>
-              <ChevronDown className={`w-4 h-4 transition-transform ${showFilters ? 'rotate-180' : ''}`} />
+              <Filter className="w-3.5 h-3.5" />
+              <span>Sort</span>
+              <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showFilters ? 'rotate-180' : ''}`} />
             </button>
           </div>
 
-          {/* Advanced Filters Panel */}
+          {/* Sort Options Dropdown */}
           {showFilters && (
-            <div className="mt-4 p-4 bg-gray-800/50 rounded-xl border border-white/10">
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                <div>
-                  <label className="text-xs text-gray-400 mb-1 block">Genre</label>
-                  <select
-                    value={selectedGenre}
-                    onChange={(e) => setSelectedGenre(e.target.value)}
-                    className="w-full px-3 py-2 bg-gray-700 text-white rounded-lg 
-                             border border-white/20 focus:border-green-500 focus:outline-none"
-                  >
-                    {genres.map(genre => (
-                      <option key={genre.value} value={genre.value}>{genre.label}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="text-xs text-gray-400 mb-1 block">Sort By</label>
-                  <select
-                    value={sortBy}
-                    onChange={(e) => setSortBy(e.target.value)}
-                    className="w-full px-3 py-2 bg-gray-700 text-white rounded-lg 
-                             border border-white/20 focus:border-green-500 focus:outline-none"
-                  >
-                    <option value="title">Title A-Z</option>
-                    <option value="artist">Artist A-Z</option>
-                    <option value="newest">Newest First</option>
-                    <option value="popular">Most Popular</option>
-                  </select>
-                </div>
-
-                <div className="flex items-end">
-                  <label className="flex items-center gap-2 text-white cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={showOnlyFree}
-                      onChange={(e) => setShowOnlyFree(e.target.checked)}
-                      className="w-4 h-4 rounded bg-gray-700 border-gray-600 
-                               text-green-500 focus:ring-green-500"
-                    />
-                    <span className="text-sm">Free Activities Only</span>
-                  </label>
-                </div>
-              </div>
+            <div className="mt-2 p-3 bg-gray-800/50 rounded-lg border border-white/10 inline-block">
+              <label className="text-xs text-gray-400 mb-1 block">Sort By:</label>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                className="px-3 py-1.5 bg-gray-700 text-white rounded text-sm
+                         border border-white/20 focus:border-green-500 focus:outline-none"
+              >
+                <option value="title">Title A-Z</option>
+                <option value="artist">Artist A-Z</option>
+                <option value="newest">Newest First</option>
+                <option value="popular">Most Popular</option>
+              </select>
             </div>
           )}
         </div>
@@ -346,11 +376,13 @@ export default function ActivitiesPage() {
       <div className="max-w-7xl mx-auto px-4 py-4">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-semibold text-white">
-            {searchQuery ? `Search Results (${filteredActivities.length})` : 
+            {showOnlyFree ? `Free Activities (${filteredActivities.length})` :
+             searchQuery ? `Search Results (${filteredActivities.length})` : 
              selectedCategory !== "all" ? `${selectedCategory} (${filteredActivities.length})` :
+             selectedGenre !== "all" ? `${selectedGenre} Music (${filteredActivities.length})` :
              `All Activities (${filteredActivities.length})`}
           </h2>
-          {(searchQuery || selectedCategory !== "all" || selectedGenre !== "all") && (
+          {(searchQuery || selectedCategory !== "all" || selectedGenre !== "all" || showOnlyFree) && (
             <button
               onClick={() => {
                 setSearchQuery("");
