@@ -11,9 +11,9 @@ export default async function handler(
   let lambdaUrl = "https://api.coolenglishmusic.com/grant?ajax=true";
   
   if (prefix) {
-    lambdaUrl += `&prefix=${prefix}`;
+    lambdaUrl += `&prefix=${encodeURIComponent(prefix as string)}`;
   } else if (activityId) {
-    lambdaUrl += `&activityId=${activityId}`;
+    lambdaUrl += `&activityId=${encodeURIComponent(activityId as string)}`;
   } else {
     return res.status(400).json({ error: "Missing prefix or activityId parameter" });
   }
@@ -23,6 +23,8 @@ export default async function handler(
     
     const lambdaResponse = await fetch(lambdaUrl);
     const data = await lambdaResponse.json();
+    
+    console.log("Lambda response data:", data);
 
     if (!lambdaResponse.ok) {
       return res.status(lambdaResponse.status).json({ 
@@ -31,13 +33,10 @@ export default async function handler(
       });
     }
 
-    if (data.success && data.cookies) {
-      // Set CloudFront cookies
-      res.setHeader("Set-Cookie", [
-        `CloudFront-Policy=${data.cookies['CloudFront-Policy']}; Domain=.coolenglishmusic.com; Path=/; Secure; HttpOnly; SameSite=None; Max-Age=86400`,
-        `CloudFront-Signature=${data.cookies['CloudFront-Signature']}; Domain=.coolenglishmusic.com; Path=/; Secure; HttpOnly; SameSite=None; Max-Age=86400`,
-        `CloudFront-Key-Pair-Id=${data.cookies['CloudFront-Key-Pair-Id']}; Domain=.coolenglishmusic.com; Path=/; Secure; HttpOnly; SameSite=None; Max-Age=86400`
-      ]);
+    // The Lambda returns cookies as an ARRAY when ajax=true
+    if (data.success && data.cookies && Array.isArray(data.cookies)) {
+      // Set the cookies directly from the array
+      res.setHeader("Set-Cookie", data.cookies);
 
       return res.status(200).json({
         success: true,
@@ -47,7 +46,8 @@ export default async function handler(
 
     return res.status(500).json({ 
       error: "Invalid Lambda response format",
-      details: data 
+      details: data,
+      note: "Expected cookies array but got: " + typeof data.cookies
     });
 
   } catch (error: any) {
