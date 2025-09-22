@@ -1,8 +1,7 @@
 // pages/activities.tsx
-
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/router";
-import { getCurrentUser, fetchAuthSession } from "aws-amplify/auth";
+import { fetchAuthSession } from "aws-amplify/auth";
 import { 
   Search, 
   Filter, 
@@ -31,15 +30,15 @@ interface Activity {
   artist: string;
   description: string;
   s3Prefix: string;
-  s3Key?: string;       // Full S3 key to the actual HTML file
+  s3Key?: string;
   thumbnail: string;
   category: string;
   genre: string;
   isFree: string;
   tags?: string[];
   featured?: boolean;
-  createdAt?: number;    // Timestamp for sorting
-  updatedAt?: number;    // Timestamp
+  createdAt?: number;
+  updatedAt?: number;
 }
 
 export default function ActivitiesPage() {
@@ -50,9 +49,11 @@ export default function ActivitiesPage() {
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [selectedGenre, setSelectedGenre] = useState("all");
   const [showOnlyFree, setShowOnlyFree] = useState(false);
-  const [sortBy, setSortBy] = useState("title"); // "title", "artist", "newest", "popular"
+  const [sortBy, setSortBy] = useState("title");
   const [showFilters, setShowFilters] = useState(false);
-
+  const [isSubscribed, setIsSubscribed] = useState(false);
+  const [checkingAuth, setCheckingAuth] = useState(true);
+  
   // Categories with icons and colors
   const categories = [
     { value: "all", label: "All Activities", icon: Globe, color: "bg-gray-500" },
@@ -79,6 +80,37 @@ export default function ActivitiesPage() {
     return genreConfig?.color || "bg-gray-500";
   };
 
+  // Check user subscription status on mount
+  useEffect(() => {
+    checkUserStatus();
+  }, []);
+
+  const checkUserStatus = async () => {
+    try {
+      const session = await fetchAuthSession();
+      const idToken = session?.tokens?.idToken?.toString();
+      
+      if (idToken) {
+        // Check subscription status
+        const response = await fetch('/api/check-subscription', {
+          headers: {
+            'Authorization': `Bearer ${idToken}`
+          }
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          setIsSubscribed(data.isSubscribed === true);
+        }
+      }
+    } catch (error) {
+      console.log("User not logged in");
+    } finally {
+      setCheckingAuth(false);
+    }
+  };
+
+  // Fetch activities on mount
   useEffect(() => {
     fetchActivities();
   }, []);
@@ -88,10 +120,8 @@ export default function ActivitiesPage() {
       const response = await fetch(`${API_BASE}/activities`);
       const data = await response.json();
       
-      // Enhance activities with additional metadata
       const enhancedActivities = data.activities.map((activity: Activity) => ({
         ...activity,
-        // Check if it's a holiday or kids song and update genre if needed
         genre: determineEnhancedGenre(activity)
       }));
       
@@ -107,19 +137,16 @@ export default function ActivitiesPage() {
     const title = activity.title.toLowerCase();
     const artist = activity.artist.toLowerCase();
     
-    // Check for holiday songs
     if (title.includes("christmas") || title.includes("halloween") || 
         title.includes("thanksgiving") || title.includes("holiday")) {
       return "Holiday";
     }
     
-    // Check for kids songs
     if (title.includes("kids") || title.includes("children") || 
         artist.includes("kids") || artist.includes("disney")) {
       return "Kids";
     }
     
-    // Return original genre
     return activity.genre;
   };
 
@@ -127,7 +154,6 @@ export default function ActivitiesPage() {
   const filteredActivities = useMemo(() => {
     let filtered = [...activities];
 
-    // Search filter (searches title, artist, description, and tags)
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(activity => 
@@ -138,22 +164,18 @@ export default function ActivitiesPage() {
       );
     }
 
-    // Category filter
     if (selectedCategory !== "all") {
       filtered = filtered.filter(activity => activity.category === selectedCategory);
     }
 
-    // Genre filter
     if (selectedGenre !== "all") {
       filtered = filtered.filter(activity => activity.genre === selectedGenre);
     }
 
-    // Free only filter
     if (showOnlyFree) {
       filtered = filtered.filter(activity => activity.isFree === "true");
     }
 
-    // Sorting
     filtered.sort((a, b) => {
       switch (sortBy) {
         case "artist":
@@ -161,7 +183,6 @@ export default function ActivitiesPage() {
         case "newest":
           return (b.createdAt || 0) - (a.createdAt || 0);
         case "popular":
-          // You could add a popularity metric here
           return 0;
         case "title":
         default:
@@ -172,78 +193,43 @@ export default function ActivitiesPage() {
     return filtered;
   }, [activities, searchQuery, selectedCategory, selectedGenre, showOnlyFree, sortBy]);
 
-
-// In pages/activities.tsx - Replace the entire handleStartActivity function
-
-// In pages/activities.tsx - Replace the ENTIRE handleStartActivity function with this original version
-
-// In pages/activities.tsx - Replace handleStartActivity with this production version
-
-// Replace the ENTIRE handleStartActivity function in activities.tsx with this:
-
-// Replace handleStartActivity in activities.tsx with this:
-
-// In activities.tsx - Replace handleStartActivity with this final secure version
-
-// In activities.tsx - Replace handleStartActivity with this NO POPUP version
-
-// In activities.tsx - Replace handleStartActivity with this complete version
-
-const handleStartActivity = async (activity: Activity) => {
-  try {
-    const path = activity.s3Key || activity.s3Prefix;
-    
-    // Try to get auth token (won't have one if not logged in)
-    let headers: any = {};
+  // Handle activity click with proper redirects
+  const handleStartActivity = async (activity: Activity) => {
     try {
-      const session = await fetchAuthSession();
-      const idToken = session?.tokens?.idToken?.toString();
-      if (idToken) {
-        headers['Authorization'] = `Bearer ${idToken}`;
-      }
-    } catch (e) {
-      // Not logged in - that's OK, continue anyway
-      console.log("No auth session");
-    }
-    
-    // Call grant-access (will check if activity is free or needs auth)
-    const response = await fetch(`/api/grant-access?prefix=${encodeURIComponent(path)}`, {
-      headers
-    });
-    
-    const data = await response.json();
-    console.log("Grant response:", data);
-    
-    if (data.success && data.activityUrl) {
-      // Success - open the activity
-      window.open(data.activityUrl, '_blank');
-    } else if (data.error === 'authentication_required') {
-      // Not logged in - ask to login
-      const message = activity.isFree === "true" 
-        ? "This free activity requires you to log in. Would you like to log in now?"
-        : "Please log in to access this premium activity. Would you like to log in now?";
+      const path = activity.s3Key || activity.s3Prefix;
       
-      if (confirm(message)) {
-        window.location.href = '/login';
+      let headers: any = {};
+      try {
+        const session = await fetchAuthSession();
+        const idToken = session?.tokens?.idToken?.toString();
+        if (idToken) {
+          headers['Authorization'] = `Bearer ${idToken}`;
+        }
+      } catch (e) {
+        console.log("No auth session");
       }
-    } else if (data.error === 'subscription_required') {
-      // Logged in but no subscription - offer pricing
-      if (confirm("Premium subscription required ($2/month). Would you like to see our pricing?")) {
-        window.location.href = '/pricing';
+      
+      const response = await fetch(`/api/grant-access?prefix=${encodeURIComponent(path)}`, {
+        headers
+      });
+      
+      const data = await response.json();
+      
+      if (data.success && data.activityUrl) {
+        window.open(data.activityUrl, '_blank');
+      } else if (data.error === 'authentication_required') {
+        // Not logged in - redirect to signup
+        router.push('/signup');
+      } else if (data.error === 'subscription_required') {
+        // Logged in but no subscription - redirect to pricing
+        router.push('/pricing');
+      } else {
+        console.error("Activity error:", data);
       }
-    } else {
-      // Some other error - log it but don't show popup
-      console.error("Activity error:", data);
-      if (data.message) {
-        alert(data.message);
-      }
+    } catch (error) {
+      console.error("Error starting activity:", error);
     }
-    
-  } catch (error) {
-    console.error("Error starting activity:", error);
-    alert("Error loading activity. Please try again.");
-  }
-};
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-900 to-black">
@@ -275,7 +261,6 @@ const handleStartActivity = async (activity: Activity) => {
 
           {/* Quick Filters Bar */}
           <div className="flex flex-wrap items-center gap-2">
-            {/* Category Pills */}
             <div className="flex flex-wrap gap-2">
               {categories.map(cat => {
                 const Icon = cat.icon;
@@ -295,7 +280,6 @@ const handleStartActivity = async (activity: Activity) => {
               })}
             </div>
 
-            {/* Toggle Advanced Filters */}
             <button
               onClick={() => setShowFilters(!showFilters)}
               className="ml-auto px-4 py-2 bg-gray-800 text-gray-300 rounded-full 
@@ -311,7 +295,6 @@ const handleStartActivity = async (activity: Activity) => {
           {showFilters && (
             <div className="mt-4 p-4 bg-gray-800/50 rounded-xl border border-white/10">
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                {/* Genre Filter */}
                 <div>
                   <label className="text-xs text-gray-400 mb-1 block">Genre</label>
                   <select
@@ -326,7 +309,6 @@ const handleStartActivity = async (activity: Activity) => {
                   </select>
                 </div>
 
-                {/* Sort By */}
                 <div>
                   <label className="text-xs text-gray-400 mb-1 block">Sort By</label>
                   <select
@@ -342,7 +324,6 @@ const handleStartActivity = async (activity: Activity) => {
                   </select>
                 </div>
 
-                {/* Free Only Checkbox */}
                 <div className="flex items-end">
                   <label className="flex items-center gap-2 text-white cursor-pointer">
                     <input
@@ -405,14 +386,12 @@ const handleStartActivity = async (activity: Activity) => {
                   }}
                 />
                 
-                {/* Top Left Badges - Category/Genre */}
+                {/* Top Left Badges */}
                 <div className="absolute top-2 left-2 flex gap-2">
-                  {/* Genre Badge with Color */}
                   <span className={`px-2 py-1 ${getGenreColor(activity.genre)} text-white text-xs rounded-full font-medium`}>
                     {activity.genre}
                   </span>
                   
-                  {/* Special Badges */}
                   {activity.isFree === "true" && (
                     <span className="px-2 py-1 bg-green-500 text-white text-xs rounded-full flex items-center gap-1">
                       <Star className="w-3 h-3" />
@@ -428,12 +407,11 @@ const handleStartActivity = async (activity: Activity) => {
                   )}
                 </div>
                 
-                {/* Top Right Actions - Favorite and Share */}
+                {/* Top Right Actions */}
                 <div className="absolute top-2 right-2 flex gap-2 z-20">
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      // Favorite functionality coming soon
                       alert("Favorites feature coming soon!");
                     }}
                     className="p-1.5 bg-black/50 backdrop-blur-sm rounded-full hover:bg-black/70 transition-all group"
@@ -445,7 +423,6 @@ const handleStartActivity = async (activity: Activity) => {
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      // Share functionality coming soon
                       alert("Share feature coming soon!");
                     }}
                     className="p-1.5 bg-black/50 backdrop-blur-sm rounded-full hover:bg-black/70 transition-all group"
@@ -463,9 +440,9 @@ const handleStartActivity = async (activity: Activity) => {
                     className="p-4 bg-green-500 rounded-full hover:bg-green-400 
                              transform hover:scale-110 transition-all shadow-lg"
                   >
-                    {activity.isFree === "false" ? 
-                      <Lock className="w-6 h-6 text-white" /> : 
-                      <Play className="w-6 h-6 text-white" />
+                    {(activity.isFree === "true" || isSubscribed) ? 
+                      <Play className="w-6 h-6 text-white" /> : 
+                      <Lock className="w-6 h-6 text-white" />
                     }
                   </button>
                 </div>
@@ -480,7 +457,6 @@ const handleStartActivity = async (activity: Activity) => {
                   {activity.artist}
                 </p>
                 
-                {/* Category Tag */}
                 <div className="flex items-center justify-between mb-3">
                   <span className="px-2 py-1 bg-gray-700 text-gray-300 text-xs rounded-full">
                     {activity.category}
@@ -491,11 +467,12 @@ const handleStartActivity = async (activity: Activity) => {
                 <button
                   onClick={() => handleStartActivity(activity)}
                   className={`w-full py-2 rounded-lg font-medium transition-all
-                    ${activity.isFree === "true" 
+                    ${(activity.isFree === "true" || isSubscribed)
                       ? 'bg-green-500 hover:bg-green-400 text-white' 
                       : 'bg-gray-700 hover:bg-gray-600 text-gray-300'}`}
                 >
-                  {activity.isFree === "true" ? 'Play Free' : 'Premium Activity'}
+                  {activity.isFree === "true" ? 'Play Free' : 
+                   isSubscribed ? 'Play Now' : 'Premium Activity'}
                 </button>
               </div>
             </div>
