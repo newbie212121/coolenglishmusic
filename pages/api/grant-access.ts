@@ -6,8 +6,8 @@ export default async function handler(
   res: NextApiResponse
 ) {
   const { prefix, activityId } = req.query;
+  const authHeader = req.headers.authorization;
   
-  // Build the Lambda URL
   let lambdaUrl = "https://api.coolenglishmusic.com/grant?ajax=true";
   
   if (prefix) {
@@ -19,12 +19,36 @@ export default async function handler(
   }
 
   try {
-    console.log("Calling Lambda:", lambdaUrl);
+    // CRITICAL: Pass the Authorization header to Lambda
+    const headers: any = {
+      "Content-Type": "application/json"
+    };
     
-    const lambdaResponse = await fetch(lambdaUrl);
+    if (authHeader) {
+      headers["Authorization"] = authHeader;
+    }
+    
+    const lambdaResponse = await fetch(lambdaUrl, { headers });
     const data = await lambdaResponse.json();
+
+    // Handle different response codes
+    if (lambdaResponse.status === 401) {
+      // Not authenticated
+      return res.status(200).json({ 
+        success: false,
+        error: "authentication_required",
+        message: data.message || "Please log in to access this activity"
+      });
+    }
     
-    console.log("Lambda response:", data);
+    if (lambdaResponse.status === 403) {
+      // Not subscribed
+      return res.status(200).json({ 
+        success: false,
+        error: "subscription_required",
+        message: data.message || "Premium subscription required"
+      });
+    }
 
     if (!lambdaResponse.ok) {
       return res.status(lambdaResponse.status).json({ 
@@ -33,10 +57,17 @@ export default async function handler(
       });
     }
 
-    // The Lambda returns cookies as an ARRAY when ajax=true
+    // Success - fix cookies and return
     if (data.success && data.cookies && Array.isArray(data.cookies)) {
-      // Set the cookies
-      res.setHeader("Set-Cookie", data.cookies);
+      // Fix empty domain in cookies
+      const fixedCookies = data.cookies.map(cookie => {
+        if (cookie.includes('Domain=;')) {
+          return cookie.replace('Domain=;', 'Domain=.coolenglishmusic.com;');
+        }
+        return cookie;
+      });
+      
+      res.setHeader("Set-Cookie", fixedCookies);
 
       return res.status(200).json({
         success: true,
@@ -44,7 +75,6 @@ export default async function handler(
       });
     }
 
-    // Handle other success cases (might not have cookies)
     if (data.activityUrl) {
       return res.status(200).json({
         success: true,
