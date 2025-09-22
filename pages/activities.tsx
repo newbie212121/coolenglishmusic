@@ -181,28 +181,32 @@ export default function ActivitiesPage() {
 
 // Replace the ENTIRE handleStartActivity function in activities.tsx with this:
 
+// Replace handleStartActivity in activities.tsx with this:
+
 const handleStartActivity = async (activity: Activity) => {
   try {
-    // Just call grant-access for ALL activities
-    // Let the backend handle auth/subscription checks
     const path = activity.s3Key || activity.s3Prefix;
     
     const response = await fetch(`/api/grant-access?prefix=${encodeURIComponent(path)}`);
     const data = await response.json();
     
+    console.log("Grant response:", data);
+    
     if (data.success && data.activityUrl) {
+      // Success - open the activity
       window.open(data.activityUrl, '_blank');
-    } else if (data.error && data.error.includes('subscription')) {
-      // Only show pricing prompt if it's specifically a subscription issue
-      if (confirm("Premium subscription required ($2/month). Would you like to subscribe now?")) {
-        router.push('/pricing');
-      }
     } else {
-      console.error("Grant access failed:", data);
+      // Log the error but don't show popups
+      console.error("Could not open activity:", data);
+      // Only show alert for actual errors, not auth issues
+      if (data.error && data.error.includes("Server")) {
+        alert("Error loading activity. Please try again.");
+      }
     }
     
   } catch (error) {
     console.error("Error starting activity:", error);
+    alert("Error loading activity. Please try again.");
   }
 };
 
