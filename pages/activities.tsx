@@ -175,66 +175,20 @@ export default function ActivitiesPage() {
 
 // In pages/activities.tsx - Replace the entire handleStartActivity function
 
+// In pages/activities.tsx - Replace the ENTIRE handleStartActivity function with this original version
+
 const handleStartActivity = async (activity: Activity) => {
   try {
-    // Free activities - just grant access
-    if (activity.isFree === "true") {
-      const path = activity.s3Key || activity.s3Prefix;
-      const response = await fetch(`/api/grant-access?prefix=${encodeURIComponent(path)}`);
-      const data = await response.json();
-      
-      if (data.success && data.activityUrl) {
-        window.open(data.activityUrl, '_blank');
-      }
-      return;
-    }
+    // Just grant access - no auth or subscription checks
+    const path = activity.s3Key || activity.s3Prefix;
     
-    // Premium activities - check auth and subscription
-    try {
-      const user = await getCurrentUser();
-      const session = await fetchAuthSession();
-      const idToken = session?.tokens?.idToken?.toString();
-      
-      if (!idToken) {
-        alert("Please log in to access premium activities");
-        router.push('/login');
-        return;
-      }
-      
-      // FIXED: Use local proxy route instead of direct API call
-      const response = await fetch('/api/check-subscription', {
-        headers: {
-          'Authorization': `Bearer ${idToken}`
-        }
-      });
-      
-      const data = await response.json();
-      
-      if (!data.isSubscribed) {
-        alert("Premium subscription required. Subscribe for just $2/month!");
-        router.push('/pricing');
-        return;
-      }
-      
-      // User has subscription, grant access
-      const path = activity.s3Key || activity.s3Prefix;
-      const accessResponse = await fetch(`/api/grant-access?prefix=${encodeURIComponent(path)}`, {
-        headers: {
-          'Authorization': `Bearer ${idToken}`
-        }
-      });
-      
-      const accessData = await accessResponse.json();
-      
-      if (accessData.success && accessData.activityUrl) {
-        window.open(accessData.activityUrl, '_blank');
-      }
-      
-    } catch (authError) {
-      // Not logged in
-      console.error("Auth error:", authError);
-      alert("Please log in to access premium activities");
-      router.push('/login');
+    const response = await fetch(`/api/grant-access?prefix=${encodeURIComponent(path)}`);
+    const data = await response.json();
+    
+    if (data.success && data.activityUrl) {
+      window.open(data.activityUrl, '_blank');
+    } else {
+      console.error("Grant access failed:", data);
     }
     
   } catch (error) {
