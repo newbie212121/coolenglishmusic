@@ -60,7 +60,7 @@ export default async function handler(
     // Success - fix cookies and return
     if (data.success && data.cookies && Array.isArray(data.cookies)) {
       // Fix empty domain in cookies
-      const fixedCookies = data.cookies.map(cookie => {
+      const fixedCookies = data.cookies.map((cookie: string) => {
         if (cookie.includes('Domain=;')) {
           return cookie.replace('Domain=;', 'Domain=.coolenglishmusic.com;');
         }
