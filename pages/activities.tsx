@@ -187,11 +187,13 @@ export default function ActivitiesPage() {
 
 // In activities.tsx - Replace handleStartActivity with this NO POPUP version
 
+// In activities.tsx - Replace handleStartActivity with this complete version
+
 const handleStartActivity = async (activity: Activity) => {
   try {
     const path = activity.s3Key || activity.s3Prefix;
     
-    // Get auth token if available (don't fail if not)
+    // Try to get auth token (won't have one if not logged in)
     let headers: any = {};
     try {
       const session = await fetchAuthSession();
@@ -200,39 +202,46 @@ const handleStartActivity = async (activity: Activity) => {
         headers['Authorization'] = `Bearer ${idToken}`;
       }
     } catch (e) {
-      // No auth session - that's fine for free activities
+      // Not logged in - that's OK, continue anyway
+      console.log("No auth session");
     }
     
-    // Call grant-access
+    // Call grant-access (will check if activity is free or needs auth)
     const response = await fetch(`/api/grant-access?prefix=${encodeURIComponent(path)}`, {
       headers
     });
     
     const data = await response.json();
+    console.log("Grant response:", data);
     
     if (data.success && data.activityUrl) {
       // Success - open the activity
       window.open(data.activityUrl, '_blank');
     } else if (data.error === 'authentication_required') {
-      // Use a confirm dialog instead of navigation
-      if (confirm("Please log in to access this activity. Open login in new tab?")) {
-        // Open login in new tab to avoid basic auth popup
-        window.open('/login', '_blank');
+      // Not logged in - ask to login
+      const message = activity.isFree === "true" 
+        ? "This free activity requires you to log in. Would you like to log in now?"
+        : "Please log in to access this premium activity. Would you like to log in now?";
+      
+      if (confirm(message)) {
+        window.location.href = '/login';
       }
     } else if (data.error === 'subscription_required') {
-      // Use a confirm dialog
-      if (confirm("Premium subscription required ($2/month). Open pricing in new tab?")) {
-        // Open pricing in new tab
-        window.open('/pricing', '_blank');
+      // Logged in but no subscription - offer pricing
+      if (confirm("Premium subscription required ($2/month). Would you like to see our pricing?")) {
+        window.location.href = '/pricing';
       }
     } else {
-      // Silent fail - just log the error
-      console.error("Could not open activity:", data);
+      // Some other error - log it but don't show popup
+      console.error("Activity error:", data);
+      if (data.message) {
+        alert(data.message);
+      }
     }
     
   } catch (error) {
     console.error("Error starting activity:", error);
-    // Don't show alert - just fail silently
+    alert("Error loading activity. Please try again.");
   }
 };
 
