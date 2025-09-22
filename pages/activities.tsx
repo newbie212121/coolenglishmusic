@@ -200,7 +200,7 @@ const handleStartActivity = async (activity: Activity) => {
       }
       
       // Check subscription using same endpoint as check-sub.tsx
-      const response = await fetch('https://api.coolenglishmusic.com/check-subscription-status', {
+      const response = await fetch('/api/check-subscription', {
         headers: {
           'Authorization': `Bearer ${idToken}`
         }
