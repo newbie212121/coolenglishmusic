@@ -1,5 +1,6 @@
 // pages/api/grant-access.ts
 import type { NextApiRequest, NextApiResponse } from "next";
+import { fetchAuthSession } from "aws-amplify/auth";
 
 export default async function handler(
   req: NextApiRequest,
@@ -7,7 +8,25 @@ export default async function handler(
 ) {
   const { prefix, activityId } = req.query;
   
-  // Build the Lambda URL based on what was provided
+  // Check if user is authenticated (optional - can remove if you want)
+  try {
+    const session = await fetchAuthSession();
+    const idToken = session?.tokens?.idToken?.toString();
+    
+    // If no token, return error (optional check)
+    if (!idToken) {
+      return res.status(200).json({ 
+        success: false,
+        error: "authentication_required",
+        message: "Please log in to access activities" 
+      });
+    }
+  } catch (e) {
+    // Session check failed - continue anyway
+    console.log("Session check failed, continuing");
+  }
+  
+  // Build the Lambda URL
   let lambdaUrl = "https://api.coolenglishmusic.com/grant?ajax=true";
   
   if (prefix) {
@@ -19,41 +38,37 @@ export default async function handler(
   }
 
   try {
-    console.log("Calling Lambda:", lambdaUrl);
-    
     const lambdaResponse = await fetch(lambdaUrl);
     const data = await lambdaResponse.json();
-    
-    console.log("Lambda response data:", data);
 
     if (!lambdaResponse.ok) {
-      return res.status(lambdaResponse.status).json({ 
-        error: "Lambda request failed",
+      return res.status(200).json({ 
+        success: false,
+        error: "access_denied",
         details: data 
       });
     }
 
-    // The Lambda returns cookies as an ARRAY when ajax=true
+    // Success - return activity URL
     if (data.success && data.cookies && Array.isArray(data.cookies)) {
-      // Set the cookies directly from the array
       res.setHeader("Set-Cookie", data.cookies);
-
       return res.status(200).json({
         success: true,
         activityUrl: data.activityUrl,
       });
     }
 
-    return res.status(500).json({ 
-      error: "Invalid Lambda response format",
-      details: data,
-      note: "Expected cookies array but got: " + typeof data.cookies
+    return res.status(200).json({ 
+      success: false,
+      error: "invalid_response",
+      details: data
     });
 
   } catch (error: any) {
     console.error("Error in grant-access:", error);
-    return res.status(500).json({ 
-      error: "Server error",
+    return res.status(200).json({ 
+      success: false,
+      error: "server_error",
       details: error.message 
     });
   }

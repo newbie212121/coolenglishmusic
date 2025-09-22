@@ -179,76 +179,30 @@ export default function ActivitiesPage() {
 
 // In pages/activities.tsx - Replace handleStartActivity with this production version
 
+// Replace the ENTIRE handleStartActivity function in activities.tsx with this:
+
 const handleStartActivity = async (activity: Activity) => {
   try {
-    // Free activities - direct access
-    if (activity.isFree === "true") {
-      const path = activity.s3Key || activity.s3Prefix;
-      const response = await fetch(`/api/grant-access?prefix=${encodeURIComponent(path)}`);
-      const data = await response.json();
-      
-      if (data.success && data.activityUrl) {
-        window.open(data.activityUrl, '_blank');
-      }
-      return;
-    }
+    // Just call grant-access for ALL activities
+    // Let the backend handle auth/subscription checks
+    const path = activity.s3Key || activity.s3Prefix;
     
-    // Premium activities - check subscription
-    let idToken = null;
+    const response = await fetch(`/api/grant-access?prefix=${encodeURIComponent(path)}`);
+    const data = await response.json();
     
-    try {
-      // Try to get current session
-      const session = await fetchAuthSession();
-      idToken = session?.tokens?.idToken?.toString();
-    } catch (e) {
-      // Session fetch failed - user not logged in
-      console.log("No active session");
-    }
-    
-    if (!idToken) {
-      // Not logged in - redirect to login WITH return URL
-      sessionStorage.setItem('nextAfterLogin', window.location.pathname);
-      router.push(`/login?next=${encodeURIComponent(window.location.pathname)}`);
-      return;
-    }
-    
-    // Check subscription via proxy (no CORS)
-    const subResponse = await fetch('/api/check-subscription', {
-      headers: {
-        'Authorization': `Bearer ${idToken}`
-      }
-    });
-    
-    if (!subResponse.ok) {
-      // API error - let user know
-      alert("Error checking subscription. Please try again.");
-      return;
-    }
-    
-    const subData = await subResponse.json();
-    
-    if (!subData.isSubscribed) {
-      // Not subscribed - redirect to pricing
+    if (data.success && data.activityUrl) {
+      window.open(data.activityUrl, '_blank');
+    } else if (data.error && data.error.includes('subscription')) {
+      // Only show pricing prompt if it's specifically a subscription issue
       if (confirm("Premium subscription required ($2/month). Would you like to subscribe now?")) {
         router.push('/pricing');
       }
-      return;
-    }
-    
-    // User is subscribed - grant access
-    const path = activity.s3Key || activity.s3Prefix;
-    const accessResponse = await fetch(`/api/grant-access?prefix=${encodeURIComponent(path)}`);
-    const accessData = await accessResponse.json();
-    
-    if (accessData.success && accessData.activityUrl) {
-      window.open(accessData.activityUrl, '_blank');
     } else {
-      alert("Error loading activity. Please try again.");
+      console.error("Grant access failed:", data);
     }
     
   } catch (error) {
     console.error("Error starting activity:", error);
-    alert("Error loading activity. Please try again.");
   }
 };
 
