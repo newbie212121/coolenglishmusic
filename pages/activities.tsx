@@ -177,18 +177,73 @@ export default function ActivitiesPage() {
 
 // In pages/activities.tsx - Replace the ENTIRE handleStartActivity function with this original version
 
+// In pages/activities.tsx - Replace handleStartActivity with this production version
+
 const handleStartActivity = async (activity: Activity) => {
   try {
-    // Just grant access - no auth or subscription checks
+    // Free activities - direct access
+    if (activity.isFree === "true") {
+      const path = activity.s3Key || activity.s3Prefix;
+      const response = await fetch(`/api/grant-access?prefix=${encodeURIComponent(path)}`);
+      const data = await response.json();
+      
+      if (data.success && data.activityUrl) {
+        window.open(data.activityUrl, '_blank');
+      }
+      return;
+    }
+    
+    // Premium activities - check subscription
+    let idToken = null;
+    
+    try {
+      // Try to get current session
+      const session = await fetchAuthSession();
+      idToken = session?.tokens?.idToken?.toString();
+    } catch (e) {
+      // Session fetch failed - user not logged in
+      console.log("No active session");
+    }
+    
+    if (!idToken) {
+      // Not logged in - redirect to login WITH return URL
+      sessionStorage.setItem('nextAfterLogin', window.location.pathname);
+      router.push(`/login?next=${encodeURIComponent(window.location.pathname)}`);
+      return;
+    }
+    
+    // Check subscription via proxy (no CORS)
+    const subResponse = await fetch('/api/check-subscription', {
+      headers: {
+        'Authorization': `Bearer ${idToken}`
+      }
+    });
+    
+    if (!subResponse.ok) {
+      // API error - let user know
+      alert("Error checking subscription. Please try again.");
+      return;
+    }
+    
+    const subData = await subResponse.json();
+    
+    if (!subData.isSubscribed) {
+      // Not subscribed - redirect to pricing
+      if (confirm("Premium subscription required ($2/month). Would you like to subscribe now?")) {
+        router.push('/pricing');
+      }
+      return;
+    }
+    
+    // User is subscribed - grant access
     const path = activity.s3Key || activity.s3Prefix;
+    const accessResponse = await fetch(`/api/grant-access?prefix=${encodeURIComponent(path)}`);
+    const accessData = await accessResponse.json();
     
-    const response = await fetch(`/api/grant-access?prefix=${encodeURIComponent(path)}`);
-    const data = await response.json();
-    
-    if (data.success && data.activityUrl) {
-      window.open(data.activityUrl, '_blank');
+    if (accessData.success && accessData.activityUrl) {
+      window.open(accessData.activityUrl, '_blank');
     } else {
-      console.error("Grant access failed:", data);
+      alert("Error loading activity. Please try again.");
     }
     
   } catch (error) {
