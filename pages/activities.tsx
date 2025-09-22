@@ -173,6 +173,8 @@ export default function ActivitiesPage() {
   }, [activities, searchQuery, selectedCategory, selectedGenre, showOnlyFree, sortBy]);
 
 
+// In pages/activities.tsx - Replace the entire handleStartActivity function
+
 const handleStartActivity = async (activity: Activity) => {
   try {
     // Free activities - just grant access
@@ -199,7 +201,7 @@ const handleStartActivity = async (activity: Activity) => {
         return;
       }
       
-      // Check subscription using same endpoint as check-sub.tsx
+      // FIXED: Use local proxy route instead of direct API call
       const response = await fetch('/api/check-subscription', {
         headers: {
           'Authorization': `Bearer ${idToken}`
@@ -230,6 +232,7 @@ const handleStartActivity = async (activity: Activity) => {
       
     } catch (authError) {
       // Not logged in
+      console.error("Auth error:", authError);
       alert("Please log in to access premium activities");
       router.push('/login');
     }
