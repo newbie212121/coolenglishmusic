@@ -86,24 +86,18 @@ export default function Dashboard() {
 
   // Check authentication on mount
   useEffect(() => {
-    // Only redirect if we're certain user is not authenticated
-    // Don't redirect while loading to prevent loops
-    if (!loading && !isAuthenticated) {
+    if (!isAuthenticated) {
       router.push('/login?next=/dashboard');
       return;
     }
     
-    // Only check membership after authentication is confirmed
-    if (!loading && isAuthenticated && !isMember) {
+    if (!isMember) {
       router.push('/pricing');
       return;
     }
     
-    // Load user data only if authenticated
-    if (isAuthenticated) {
-      loadUserData();
-    }
-  }, [isAuthenticated, isMember, loading]);
+    loadUserData();
+  }, [isAuthenticated, isMember]);
 
   const loadUserData = async () => {
     try {
@@ -148,15 +142,16 @@ export default function Dashboard() {
       
       if (response.ok) {
         const data = await response.json();
-        // Properly determine plan type and amount based on actual subscription
-        const isAnnual = data.interval === 'year' || data.plan?.includes('annual') || data.amount === 1500;
+        console.log('Subscription data from API:', data); // Debug log
         
+        // Check what fields are actually returned
+        // We'll use this info to properly detect annual vs monthly
         setSubscription({
-          status: data.status || 'active',
+          status: 'active',
           plan: data.subscriptionType || 'individual',
           currentPeriodEnd: data.currentPeriodEnd || Date.now() + 30 * 24 * 60 * 60 * 1000,
-          amount: isAnnual ? 1500 : 200, // $15.00 annual or $2.00 monthly in cents
-          interval: isAnnual ? 'year' : 'month'
+          amount: 200, // $2.00 in cents - temporarily hardcoded
+          interval: 'month'
         });
       }
     } catch (error) {
