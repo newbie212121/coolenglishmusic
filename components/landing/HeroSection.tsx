@@ -20,8 +20,8 @@ export default function HeroSection() {
             Interactive music activities that make English learning engaging and effective. Perfect for teachers and students of all levels.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-20">
-            {/* --- THIS LINE IS THE FIX --- */}
-            <Link href="/activities" className="flex items-center spotify-green spotify-green-hover text-black font-semibold px-8 py-4 text-lg rounded-full transition-transform">
+            {/* FIXED: Link directly to activities page with free filter */}
+            <Link href="/activities?filter=free" className="flex items-center spotify-green spotify-green-hover text-black font-semibold px-8 py-4 text-lg rounded-full transition-transform">
               <Play className="w-5 h-5 mr-2" />
               Try Free Activities
             </Link>
@@ -31,6 +31,7 @@ export default function HeroSection() {
             </Link>
           </div>
         </div>
+        {/* Feature grid continues... */}
         <div className="grid md:grid-cols-3 gap-8">
           <Feature icon={<Music className="w-10 h-10 text-green-400" />} title="Interactive Activities" text="Engaging music-based exercises that improve listening and expand vocabulary." />
           <Feature icon={<Users className="w-10 h-10 text-green-400" />} title="For Everyone" text="Resources designed for classroom instruction and individual learning." />
@@ -43,11 +44,9 @@ export default function HeroSection() {
 
 function Feature({ icon, title, text }: { icon: React.ReactNode; title: string; text: string }) {
   return (
-    <div className="text-center group">
-      <div className="spotify-card w-20 h-20 rounded-2xl mx-auto mb-6 flex items-center justify-center group-hover:bg-gray-700 transition-colors">
-        {icon}
-      </div>
-      <h3 className="text-2xl font-semibold text-white mb-3">{title}</h3>
+    <div className="bg-gray-900/50 backdrop-blur-sm rounded-2xl p-8 border border-gray-800 hover:border-gray-700 transition-all">
+      <div className="mb-4">{icon}</div>
+      <h3 className="text-xl font-semibold text-white mb-3">{title}</h3>
       <p className="text-gray-400 leading-relaxed">{text}</p>
     </div>
   );
