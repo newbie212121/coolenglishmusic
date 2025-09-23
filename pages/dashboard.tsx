@@ -103,11 +103,13 @@ export default function Dashboard() {
     try {
       setLoading(true);
       
-      // Get user email from Cognito
-      const session = await fetchAuthSession();
-      const idToken = session.tokens?.idToken;
-      if (idToken) {
-        // Parse email from token or fetch from user attributes
+      // Get user attributes from Cognito
+      const { fetchUserAttributes } = await import('aws-amplify/auth');
+      try {
+        const attributes = await fetchUserAttributes();
+        setEmail(attributes.email || user?.username || '');
+      } catch (error) {
+        console.log('Could not fetch user attributes:', error);
         setEmail(user?.username || '');
       }
       
@@ -217,16 +219,23 @@ export default function Dashboard() {
         return;
       }
       
+      console.log('Calling portal endpoint...');
+      
       // Your create-checkout-session Lambda actually creates portal sessions
       const response = await fetch('https://api.coolenglishmusic.com/create-checkout-session', {
         method: 'POST',
         headers: {
           'Authorization': idToken, // JWT token for the authorizer
           'Content-Type': 'application/json'
-        }
+        },
+        body: JSON.stringify({}) // Send empty body
       });
       
+      console.log('Portal response status:', response.status);
+      
       const data = await response.json();
+      console.log('Portal response data:', data);
+      
       if (data.url) {
         window.location.href = data.url;
       } else {
