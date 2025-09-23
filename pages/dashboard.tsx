@@ -1,4 +1,4 @@
-// pages/dashboard.tsx
+// pages/dashboard.tsx - Fixed version
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/router';
@@ -32,6 +32,8 @@ interface SubscriptionData {
   currentPeriodEnd: number;
   amount: number;
   interval: string;
+  intervalCount?: number;
+  stripePriceId?: string;
 }
 
 interface GroupMember {
@@ -66,50 +68,40 @@ export default function Dashboard() {
   const [subscription, setSubscription] = useState<SubscriptionData | null>(null);
   const [isLoadingPortal, setIsLoadingPortal] = useState(false);
   
-  // Group Members State (placeholder for Phase 3)
-  const [groupMembers, setGroupMembers] = useState<GroupMember[]>([]);
-  const [maxGroupSize, setMaxGroupSize] = useState(0);
-  const [newMemberEmail, setNewMemberEmail] = useState('');
-  const [newMemberName, setNewMemberName] = useState('');
-  
-  // Favorites State (placeholder for Phase 2)
-  const [favoriteLists, setFavoriteLists] = useState<FavoriteList[]>([
-    { id: '1', name: 'My Favorites', activities: [], createdAt: '2024-01-20' }
-  ]);
+  // Favorites State (Placeholder for Phase 2)
+  const [favoriteLists, setFavoriteLists] = useState<FavoriteList[]>([]);
   const [newListName, setNewListName] = useState('');
-  const [editingListId, setEditingListId] = useState<string | null>(null);
+  
+  // Group Members State (Placeholder for Phase 3)
+  const [groupMembers, setGroupMembers] = useState<GroupMember[]>([]);
+  const [newMemberEmail, setNewMemberEmail] = useState('');
   
   // UI State
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState({ type: '', text: '' });
+  const [message, setMessage] = useState<{ type: 'success' | 'error' | 'info' | ''; text: string }>({ 
+    type: '', 
+    text: '' 
+  });
 
-  // Check authentication on mount
   useEffect(() => {
     if (!isAuthenticated) {
-      router.push('/login?next=/dashboard');
+      router.push('/login?redirect=/dashboard');
       return;
     }
-    
-    if (!isMember) {
-      router.push('/pricing');
-      return;
-    }
-    
     loadUserData();
-  }, [isAuthenticated, isMember]);
+  }, [isAuthenticated, router]);
 
   const loadUserData = async () => {
     try {
-      setLoading(true);
-      
-      // Get user attributes from Cognito
-      const { fetchUserAttributes } = await import('aws-amplify/auth');
+      // Get user email from Cognito
       try {
-        const attributes = await fetchUserAttributes();
-        setEmail(attributes.email || user?.username || '');
+        const attributes = await fetchAuthSession();
+        const idToken = attributes.tokens?.idToken;
+        const payload = idToken?.payload;
+        setEmail(payload?.email as string || user?.username || '');
       } catch (error) {
-        console.log('Could not fetch user attributes:', error);
+        console.error('Could not fetch user attributes:', error);
         setEmail(user?.username || '');
       }
       
@@ -142,23 +134,17 @@ export default function Dashboard() {
       
       if (response.ok) {
         const data = await response.json();
-        console.log('Subscription data from API:', data); // Debug log
+        console.log('Subscription data from API:', data);
         
-        // Calculate if annual based on period end date
-        const now = Date.now();
-        const periodEnd = data.currentPeriodEnd || now;
-        const daysUntilEnd = (periodEnd - now) / (1000 * 60 * 60 * 24);
-        
-        // If more than 40 days until period end, it's likely annual
-        // Monthly subs renew every ~30 days, annual every ~365 days
-        const isAnnual = daysUntilEnd > 40;
-        
+        // Use the actual fields from the database
         setSubscription({
           status: data.status || 'active',
           plan: data.subscriptionType || 'individual',
-          currentPeriodEnd: periodEnd,
-          amount: isAnnual ? 1500 : 200, // $15.00 annual or $2.00 monthly in cents
-          interval: isAnnual ? 'year' : 'month'
+          currentPeriodEnd: data.currentPeriodEnd || Date.now(),
+          amount: data.amount || 200, // Default to monthly if not set
+          interval: data.interval || 'month', // Default to month if not set
+          intervalCount: data.intervalCount || 1,
+          stripePriceId: data.stripePriceId
         });
       }
     } catch (error) {
@@ -200,7 +186,6 @@ export default function Dashboard() {
     setMessage({ type: '', text: '' });
     
     try {
-      // Note: AWS Amplify v6 syntax
       const { updatePassword } = await import('aws-amplify/auth');
       await updatePassword({
         oldPassword: currentPassword,
@@ -231,11 +216,10 @@ export default function Dashboard() {
       
       console.log('Calling portal endpoint...');
       
-      // Call the dedicated portal endpoint
       const response = await fetch(`${API_BASE}/create-portal-session`, {
         method: 'POST',
         headers: {
-          'Authorization': idToken, // JWT token for the authorizer
+          'Authorization': idToken,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({})
@@ -270,6 +254,38 @@ export default function Dashboard() {
   const formatPrice = (amount: number) => {
     return `$${(amount / 100).toFixed(2)}`;
   };
+  
+  const getPlanDisplayName = () => {
+    if (!subscription) return '';
+    
+    // Determine plan name based on interval
+    if (subscription.interval === 'year') {
+      return 'Annual Subscription';
+    } else if (subscription.interval === 'month') {
+      return 'Monthly Subscription';
+    }
+    
+    // Fallback to price-based detection if interval not set
+    if (subscription.amount === 1500) return 'Annual Subscription';
+    if (subscription.amount === 200) return 'Monthly Subscription';
+    
+    return 'Subscription';
+  };
+  
+  const getPlanPriceDisplay = () => {
+    if (!subscription) return '';
+    
+    const price = formatPrice(subscription.amount);
+    
+    if (subscription.interval === 'year') {
+      return `${price} / year`;
+    } else if (subscription.interval === 'month') {
+      return `${price} / month`;
+    }
+    
+    // Fallback
+    return subscription.amount === 1500 ? `${price} / year` : `${price} / month`;
+  };
 
   // Placeholder functions for future features
   const addGroupMember = () => {
@@ -302,52 +318,77 @@ export default function Dashboard() {
           <div className={`mb-6 p-4 rounded-lg flex items-center gap-3 ${
             message.type === 'success' ? 'bg-green-500/20 border border-green-500/50 text-green-400' :
             message.type === 'error' ? 'bg-red-500/20 border border-red-500/50 text-red-400' :
-            'bg-blue-500/20 border border-blue-500/50 text-blue-400'
+            message.type === 'info' ? 'bg-blue-500/20 border border-blue-500/50 text-blue-400' :
+            ''
           }`}>
-            {message.type === 'success' ? <Check className="w-5 h-5" /> :
-             message.type === 'error' ? <X className="w-5 h-5" /> :
-             <AlertCircle className="w-5 h-5" />}
+            {message.type === 'success' && <Check className="w-5 h-5" />}
+            {message.type === 'error' && <X className="w-5 h-5" />}
+            {message.type === 'info' && <AlertCircle className="w-5 h-5" />}
             {message.text}
           </div>
         )}
 
-        <div className="grid lg:grid-cols-4 gap-6">
-          {/* Sidebar Navigation */}
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+          {/* Sidebar */}
           <div className="lg:col-span-1">
-            <nav className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-4 border border-white/10">
-              <ul className="space-y-2">
-                {[
-                  { id: 'account', label: 'Account Settings', icon: Settings },
-                  { id: 'subscription', label: 'Subscription', icon: CreditCard },
-                  { id: 'favorites', label: 'My Favorites', icon: Heart },
-                  { id: 'group', label: 'Group Members', icon: Users }
-                ].map((item) => {
-                  const Icon = item.icon;
-                  return (
-                    <li key={item.id}>
-                      <button
-                        onClick={() => setActiveTab(item.id)}
-                        className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
-                          activeTab === item.id 
-                            ? 'bg-green-500/20 text-green-400 border border-green-500/30' 
-                            : 'text-gray-400 hover:bg-gray-700/50 hover:text-white'
-                        }`}
-                      >
-                        <Icon className="w-5 h-5" />
-                        <span className="font-medium">{item.label}</span>
-                        {activeTab === item.id && <ChevronRight className="w-4 h-4 ml-auto" />}
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            </nav>
+            <div className="bg-gray-800 rounded-xl p-4">
+              <nav className="space-y-2">
+                <button
+                  onClick={() => setActiveTab('account')}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
+                    activeTab === 'account' 
+                      ? 'bg-green-500/20 text-green-400' 
+                      : 'text-gray-400 hover:text-white hover:bg-gray-700'
+                  }`}
+                >
+                  <User className="w-5 h-5" />
+                  Account Settings
+                </button>
+                
+                <button
+                  onClick={() => setActiveTab('subscription')}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
+                    activeTab === 'subscription' 
+                      ? 'bg-green-500/20 text-green-400' 
+                      : 'text-gray-400 hover:text-white hover:bg-gray-700'
+                  }`}
+                >
+                  <CreditCard className="w-5 h-5" />
+                  Subscription
+                </button>
+                
+                <button
+                  onClick={() => setActiveTab('favorites')}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
+                    activeTab === 'favorites' 
+                      ? 'bg-green-500/20 text-green-400' 
+                      : 'text-gray-400 hover:text-white hover:bg-gray-700'
+                  }`}
+                >
+                  <Heart className="w-5 h-5" />
+                  Favorites
+                </button>
+                
+                {subscription?.plan === 'group' && (
+                  <button
+                    onClick={() => setActiveTab('members')}
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
+                      activeTab === 'members' 
+                        ? 'bg-green-500/20 text-green-400' 
+                        : 'text-gray-400 hover:text-white hover:bg-gray-700'
+                    }`}
+                  >
+                    <Users className="w-5 h-5" />
+                    Group Members
+                  </button>
+                )}
+              </nav>
+            </div>
           </div>
 
           {/* Main Content Area */}
           <div className="lg:col-span-3">
-            <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 border border-white/10">
-              
+            <div className="bg-gray-800 rounded-xl p-6">
               {/* Account Settings Tab */}
               {activeTab === 'account' && (
                 <div className="space-y-6">
@@ -357,82 +398,69 @@ export default function Dashboard() {
                   </h2>
 
                   {/* Email Section */}
-                  <div className="border-t border-gray-700 pt-6">
-                    <h3 className="text-lg font-medium text-white mb-4 flex items-center gap-2">
-                      <Mail className="w-4 h-4" />
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">
                       Email Address
-                    </h3>
-                    <div className="space-y-3">
-                      <div>
-                        <label className="text-sm text-gray-400">Current Email</label>
-                        <input
-                          type="email"
-                          value={email}
-                          disabled
-                          className="w-full px-4 py-2 bg-gray-700/50 text-gray-300 rounded-lg border border-gray-600"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-sm text-gray-400">New Email</label>
-                        <input
-                          type="email"
-                          value={newEmail}
-                          onChange={(e) => setNewEmail(e.target.value)}
-                          placeholder="Enter new email"
-                          className="w-full px-4 py-2 bg-gray-700 text-white rounded-lg border border-gray-600 focus:border-green-500 focus:outline-none"
-                        />
-                      </div>
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type="email"
+                        value={newEmail || email}
+                        onChange={(e) => setNewEmail(e.target.value)}
+                        placeholder={email}
+                        className="flex-1 px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-green-500"
+                      />
                       <button
                         onClick={handleEmailUpdate}
-                        disabled={!newEmail || saving}
-                        className="px-4 py-2 bg-green-500 hover:bg-green-600 disabled:bg-gray-700 disabled:text-gray-500 text-white rounded-lg font-medium transition-all"
+                        disabled={!newEmail || newEmail === email || saving}
+                        className="px-4 py-2 bg-green-500 hover:bg-green-600 disabled:bg-gray-700 text-white rounded-lg transition-all"
                       >
-                        {saving ? 'Updating...' : 'Update Email'}
+                        {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Check className="w-5 h-5" />}
                       </button>
                     </div>
                   </div>
 
                   {/* Password Section */}
                   <div className="border-t border-gray-700 pt-6">
-                    <h3 className="text-lg font-medium text-white mb-4 flex items-center gap-2">
-                      <Lock className="w-4 h-4" />
-                      Change Password
-                    </h3>
-                    <div className="space-y-3">
+                    <h3 className="text-lg font-medium text-white mb-4">Change Password</h3>
+                    <div className="space-y-4">
                       <div>
-                        <label className="text-sm text-gray-400">Current Password</label>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">
+                          Current Password
+                        </label>
                         <input
                           type="password"
                           value={currentPassword}
                           onChange={(e) => setCurrentPassword(e.target.value)}
-                          placeholder="Enter current password"
-                          className="w-full px-4 py-2 bg-gray-700 text-white rounded-lg border border-gray-600 focus:border-green-500 focus:outline-none"
+                          className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-green-500"
                         />
                       </div>
                       <div>
-                        <label className="text-sm text-gray-400">New Password</label>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">
+                          New Password
+                        </label>
                         <input
                           type="password"
                           value={newPassword}
                           onChange={(e) => setNewPassword(e.target.value)}
-                          placeholder="Enter new password"
-                          className="w-full px-4 py-2 bg-gray-700 text-white rounded-lg border border-gray-600 focus:border-green-500 focus:outline-none"
+                          className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-green-500"
                         />
                       </div>
                       <div>
-                        <label className="text-sm text-gray-400">Confirm New Password</label>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">
+                          Confirm New Password
+                        </label>
                         <input
                           type="password"
                           value={confirmPassword}
                           onChange={(e) => setConfirmPassword(e.target.value)}
-                          placeholder="Confirm new password"
-                          className="w-full px-4 py-2 bg-gray-700 text-white rounded-lg border border-gray-600 focus:border-green-500 focus:outline-none"
+                          className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-green-500"
                         />
                       </div>
                       <button
                         onClick={handlePasswordUpdate}
                         disabled={!currentPassword || !newPassword || !confirmPassword || saving}
-                        className="px-4 py-2 bg-green-500 hover:bg-green-600 disabled:bg-gray-700 disabled:text-gray-500 text-white rounded-lg font-medium transition-all"
+                        className="px-6 py-2 bg-green-500 hover:bg-green-600 disabled:bg-gray-700 text-white rounded-lg transition-all"
                       >
                         {saving ? 'Updating...' : 'Update Password'}
                       </button>
@@ -446,34 +474,36 @@ export default function Dashboard() {
                 <div className="space-y-6">
                   <h2 className="text-xl font-semibold text-white flex items-center gap-2">
                     <CreditCard className="w-5 h-5 text-green-400" />
-                    Subscription Details
+                    Subscription Management
                   </h2>
 
-                  {subscription && (
+                  {!subscription ? (
+                    <div className="text-center py-12">
+                      <p className="text-gray-400 mb-4">No active subscription found</p>
+                      <button
+                        onClick={() => router.push('/pricing')}
+                        className="px-6 py-3 bg-green-500 hover:bg-green-600 text-white rounded-lg font-medium transition-all"
+                      >
+                        View Pricing Plans
+                      </button>
+                    </div>
+                  ) : (
                     <>
-                      {/* Current Plan */}
-                      <div className="bg-gray-700/30 rounded-lg p-6 border border-gray-600">
-                        <div className="flex items-center justify-between mb-4">
-                          <h3 className="text-lg font-medium text-white">Current Plan</h3>
-                          <span className="px-3 py-1 bg-green-500/20 text-green-400 text-sm rounded-full font-medium">
-                            {subscription.status.toUpperCase()}
-                          </span>
-                        </div>
-                        
-                        <div className="grid md:grid-cols-2 gap-4">
+                      {/* Current Plan Card */}
+                      <div className="bg-gray-700 rounded-lg p-6">
+                        <h3 className="text-lg font-medium text-white mb-4">Current Plan</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                           <div>
                             <p className="text-sm text-gray-400 mb-1">Plan Type</p>
-                            <p className="text-white font-medium capitalize">
-                              {subscription.plan} Plan
+                            <p className="text-white font-medium">
+                              {getPlanDisplayName()}
                             </p>
                           </div>
                           <div>
-                            <p className="text-sm text-gray-400 mb-1">Billing Cycle</p>
+                            <p className="text-sm text-gray-400 mb-1">Price</p>
                             <p className="text-white font-medium flex items-center gap-1">
                               <DollarSign className="w-4 h-4" />
-                              {subscription.interval === 'year' 
-                                ? `${formatPrice(subscription.amount)} / year`
-                                : `${formatPrice(subscription.amount)} / month`}
+                              {getPlanPriceDisplay()}
                             </p>
                           </div>
                           <div>
@@ -483,12 +513,18 @@ export default function Dashboard() {
                               {formatDate(subscription.currentPeriodEnd)}
                             </p>
                           </div>
-                          <div>
-                            <p className="text-sm text-gray-400 mb-1">Status</p>
-                            <p className="text-green-400 font-medium">
-                              Active & Auto-renewing
-                            </p>
-                          </div>
+                        </div>
+                        <div className="mt-4 pt-4 border-t border-gray-600">
+                          <p className="text-sm text-gray-400 mb-1">Status</p>
+                          <p className={`font-medium ${
+                            subscription.status === 'active' ? 'text-green-400' : 
+                            subscription.status === 'canceled' ? 'text-yellow-400' : 
+                            'text-red-400'
+                          }`}>
+                            {subscription.status === 'active' ? 'Active & Auto-renewing' :
+                             subscription.status === 'canceled' ? 'Canceled (Active until period end)' :
+                             'Inactive'}
+                          </p>
                         </div>
                       </div>
 
@@ -526,105 +562,43 @@ export default function Dashboard() {
                     </p>
                   </div>
 
-                  {/* Preview of what's coming */}
-                  <div className="space-y-4 opacity-50">
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-lg font-medium text-white">Your Lists</h3>
-                      <button className="px-4 py-2 bg-green-500 text-white rounded-lg font-medium flex items-center gap-2">
-                        <List className="w-4 h-4" />
-                        Create New List
-                      </button>
-                    </div>
-                    
-                    {favoriteLists.map(list => (
-                      <div key={list.id} className="bg-gray-700/30 rounded-lg p-4 border border-gray-600">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <h4 className="text-white font-medium">{list.name}</h4>
-                            <p className="text-sm text-gray-400">
-                              {list.activities.length} activities • Created {list.createdAt}
-                            </p>
-                          </div>
-                          <div className="flex gap-2">
-                            <button className="p-2 text-gray-400 hover:text-white">
-                              <Edit2 className="w-4 h-4" />
-                            </button>
-                            <button className="p-2 text-gray-400 hover:text-red-400">
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
+                  <div className="text-center py-12 text-gray-400">
+                    <Heart className="w-16 h-16 mx-auto mb-4 text-gray-600" />
+                    <p className="mb-4">No favorite lists yet</p>
+                    <button
+                      onClick={createFavoriteList}
+                      className="px-6 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-all"
+                    >
+                      Feature Coming Soon
+                    </button>
                   </div>
                 </div>
               )}
 
               {/* Group Members Tab (Placeholder) */}
-              {activeTab === 'group' && (
+              {activeTab === 'members' && subscription?.plan === 'group' && (
                 <div className="space-y-6">
                   <h2 className="text-xl font-semibold text-white flex items-center gap-2">
                     <Users className="w-5 h-5 text-green-400" />
                     Group Members
                   </h2>
 
-                  <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4">
-                    <p className="text-blue-400 text-sm">
-                      Group membership features are coming soon! Group owners will be able to add and manage team members here.
+                  <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4">
+                    <p className="text-yellow-400 text-sm">
+                      Group management features are coming soon!
                     </p>
                   </div>
 
-                  {/* Preview for individual users */}
-                  {subscription?.plan === 'individual' && (
-                    <div className="bg-gray-700/30 rounded-lg p-6 border border-gray-600 text-center">
-                      <Users className="w-12 h-12 text-gray-500 mx-auto mb-4" />
-                      <h3 className="text-lg font-medium text-white mb-2">Individual Plan</h3>
-                      <p className="text-gray-400 mb-4">
-                        You're currently on an individual plan. Upgrade to a group plan to add team members.
-                      </p>
-                      <button 
-                        onClick={() => router.push('/pricing')}
-                        className="px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg font-medium"
-                      >
-                        View Group Plans
-                      </button>
-                    </div>
-                  )}
-
-                  {/* Preview for future group owners */}
-                  {subscription?.plan === 'group' && (
-                    <div className="space-y-4 opacity-50">
-                      <div className="bg-gray-700/30 rounded-lg p-4 border border-gray-600">
-                        <div className="flex items-center justify-between mb-4">
-                          <p className="text-white">
-                            Members: <span className="font-bold">{groupMembers.length}</span> / {maxGroupSize}
-                          </p>
-                          <button className="px-4 py-2 bg-green-500 text-white rounded-lg font-medium flex items-center gap-2">
-                            <UserPlus className="w-4 h-4" />
-                            Add Member
-                          </button>
-                        </div>
-                      </div>
-
-                      <div className="space-y-2">
-                        {groupMembers.map((member, index) => (
-                          <div key={index} className="bg-gray-700/30 rounded-lg p-4 border border-gray-600 flex items-center justify-between">
-                            <div>
-                              <p className="text-white font-medium">{member.name}</p>
-                              <p className="text-sm text-gray-400">{member.email}</p>
-                            </div>
-                            <span className={`px-2 py-1 text-xs rounded-full ${
-                              member.status === 'active' 
-                                ? 'bg-green-500/20 text-green-400' 
-                                : 'bg-yellow-500/20 text-yellow-400'
-                            }`}>
-                              {member.status}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+                  <div className="text-center py-12 text-gray-400">
+                    <Users className="w-16 h-16 mx-auto mb-4 text-gray-600" />
+                    <p className="mb-4">No group members yet</p>
+                    <button
+                      onClick={addGroupMember}
+                      className="px-6 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-all"
+                    >
+                      Feature Coming Soon
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
