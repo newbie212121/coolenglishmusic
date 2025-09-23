@@ -84,7 +84,7 @@ export default function ActivitiesPage() {
   // Check for URL parameters on mount (for filtering from home page)
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.get('free') === 'true') {
+    if (urlParams.get('filter') === 'free' || urlParams.get('free') === 'true') {
       setShowOnlyFree(true);
     }
   }, []);
@@ -202,7 +202,7 @@ export default function ActivitiesPage() {
     return filtered;
   }, [activities, searchQuery, selectedCategory, selectedGenre, showOnlyFree, sortBy]);
 
-  // FIXED: Handle activity click with proper redirects
+  // Handle activity click with proper redirects
   const handleStartActivity = async (activity: Activity) => {
     try {
       const path = activity.s3Key || activity.s3Prefix;
@@ -258,6 +258,14 @@ export default function ActivitiesPage() {
     }
   };
 
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-gray-900 to-black flex items-center justify-center">
+        <div className="text-white text-xl">Loading activities...</div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-900 to-black">
       {/* Header with Search */}
@@ -286,82 +294,79 @@ export default function ActivitiesPage() {
             )}
           </div>
 
-      // Key changes for pages/activities.tsx - Filter section only
+          {/* Category Pills with Free Activities Filter */}
+          <div className="flex flex-wrap items-center gap-2 mb-3">
+            {/* Category Pills - Left Side */}
+            {categories.map(cat => {
+              const Icon = cat.icon;
+              return (
+                <button
+                  key={cat.value}
+                  onClick={() => setSelectedCategory(cat.value)}
+                  className={`px-4 py-2 rounded-full flex items-center gap-2 transition-all
+                            ${selectedCategory === cat.value 
+                              ? `${cat.color} text-white shadow-lg` 
+                              : 'bg-gray-800 text-gray-300 hover:bg-gray-700'}`}
+                >
+                  <Icon className="w-4 h-4" />
+                  <span className="text-sm font-medium">{cat.label}</span>
+                </button>
+              );
+            })}
+            
+            {/* Free Activities Toggle - Right Side */}
+            <button
+              onClick={() => setShowOnlyFree(!showOnlyFree)}
+              className={`ml-auto px-4 py-2 rounded-full flex items-center gap-2 transition-all font-medium
+                        ${showOnlyFree 
+                          ? 'bg-green-500 text-white shadow-lg shadow-green-500/30' 
+                          : 'bg-gray-800 text-gray-300 hover:bg-gray-700 border border-green-500/30'}`}
+            >
+              <Gift className="w-4 h-4" />
+              <span>Free Activities</span>
+              {showOnlyFree && <span className="text-xs">({activities.filter(a => a.isFree === "true").length})</span>}
+            </button>
+          </div>
 
-// This section replaces the filter area in your activities.tsx file
-// Starting from line ~200 where filters are defined
+          {/* Genre Pills - Second Row with Sort Dropdown */}
+          <div className="flex flex-wrap items-center gap-2 mb-3">
+            <span className="text-xs text-gray-400 mr-2">GENRES:</span>
+            {genres.map(genre => {
+              const Icon = genre.icon;
+              return (
+                <button
+                  key={genre.value}
+                  onClick={() => setSelectedGenre(genre.value)}
+                  className={`px-3 py-1.5 rounded-full flex items-center gap-1.5 transition-all text-sm
+                            ${selectedGenre === genre.value 
+                              ? `${genre.color} text-white shadow-lg` 
+                              : 'bg-gray-800/70 text-gray-400 hover:bg-gray-700'}`}
+                >
+                  <Icon className="w-3.5 h-3.5" />
+                  <span>{genre.label}</span>
+                </button>
+              );
+            })}
 
-{/* Category Pills with Free Activities Filter */}
-<div className="flex flex-wrap items-center gap-2 mb-3">
-  {/* Category Pills - Left Side */}
-  {categories.map(cat => {
-    const Icon = cat.icon;
-    return (
-      <button
-        key={cat.value}
-        onClick={() => setSelectedCategory(cat.value)}
-        className={`px-4 py-2 rounded-full flex items-center gap-2 transition-all
-                  ${selectedCategory === cat.value 
-                    ? `${cat.color} text-white shadow-lg` 
-                    : 'bg-gray-800 text-gray-300 hover:bg-gray-700'}`}
-      >
-        <Icon className="w-4 h-4" />
-        <span className="text-sm font-medium">{cat.label}</span>
-      </button>
-    );
-  })}
-  
-  {/* Free Activities Toggle - Right Side */}
-  <button
-    onClick={() => setShowOnlyFree(!showOnlyFree)}
-    className={`ml-auto px-4 py-2 rounded-full flex items-center gap-2 transition-all font-medium
-              ${showOnlyFree 
-                ? 'bg-green-500 text-white shadow-lg shadow-green-500/30' 
-                : 'bg-gray-800 text-gray-300 hover:bg-gray-700 border border-green-500/30'}`}
-  >
-    <Gift className="w-4 h-4" />
-    <span>Free Activities</span>
-    {showOnlyFree && <span className="text-xs">({activities.filter(a => a.isFree === "true").length})</span>}
-  </button>
-</div>
-
-{/* Genre Pills - Second Row with Sort Dropdown */}
-<div className="flex flex-wrap items-center gap-2 mb-3">
-  <span className="text-xs text-gray-400 mr-2">GENRES:</span>
-  {genres.map(genre => {
-    const Icon = genre.icon;
-    return (
-      <button
-        key={genre.value}
-        onClick={() => setSelectedGenre(genre.value)}
-        className={`px-3 py-1.5 rounded-full flex items-center gap-1.5 transition-all text-sm
-                  ${selectedGenre === genre.value 
-                    ? `${genre.color} text-white shadow-lg` 
-                    : 'bg-gray-800/70 text-gray-400 hover:bg-gray-700'}`}
-      >
-        <Icon className="w-3.5 h-3.5" />
-        <span>{genre.label}</span>
-      </button>
-    );
-  })}
-
-  {/* Sort Dropdown - Moved to Genre Row, Direct Select */}
-  <div className="ml-auto relative">
-    <select
-      value={sortBy}
-      onChange={(e) => setSortBy(e.target.value)}
-      className="px-4 py-1.5 bg-gray-800/70 text-gray-400 rounded-full 
-               hover:bg-gray-700 transition-all text-sm appearance-none pr-8
-               border border-white/10 focus:border-green-500 focus:outline-none"
-    >
-      <option value="title">Sort: Title A-Z</option>
-      <option value="artist">Sort: Artist A-Z</option>
-      <option value="newest">Sort: Newest First</option>
-      <option value="popular">Sort: Most Popular</option>
-    </select>
-    <ChevronDown className="absolute right-2 top-1/2 transform -translate-y-1/2 w-3.5 h-3.5 pointer-events-none text-gray-400" />
-  </div>
-</div>
+            {/* Sort Dropdown - Moved to Genre Row, Direct Select */}
+            <div className="ml-auto relative">
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                className="px-4 py-1.5 bg-gray-800/70 text-gray-400 rounded-full 
+                         hover:bg-gray-700 transition-all text-sm appearance-none pr-8
+                         border border-white/10 focus:border-green-500 focus:outline-none"
+              >
+                <option value="title">Sort: Title A-Z</option>
+                <option value="artist">Sort: Artist A-Z</option>
+                <option value="newest">Sort: Newest First</option>
+                <option value="popular">Sort: Most Popular</option>
+              </select>
+              <ChevronDown className="absolute right-2 top-1/2 transform -translate-y-1/2 w-3.5 h-3.5 pointer-events-none text-gray-400" />
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* Results Summary */}
       <div className="max-w-7xl mx-auto px-4 py-4">
