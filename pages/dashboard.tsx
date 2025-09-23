@@ -221,14 +221,14 @@ export default function Dashboard() {
       
       console.log('Calling portal endpoint...');
       
-      // Your create-checkout-session Lambda actually creates portal sessions
-      const response = await fetch('https://api.coolenglishmusic.com/create-checkout-session', {
+      // Call the dedicated portal endpoint
+      const response = await fetch(`${API_BASE}/create-portal-session`, {
         method: 'POST',
         headers: {
           'Authorization': idToken, // JWT token for the authorizer
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({}) // Send empty body
+        body: JSON.stringify({})
       });
       
       console.log('Portal response status:', response.status);
@@ -236,7 +236,7 @@ export default function Dashboard() {
       const data = await response.json();
       console.log('Portal response data:', data);
       
-      if (data.url) {
+      if (response.ok && data.url) {
         window.location.href = data.url;
       } else {
         setMessage({ type: 'error', text: data.message || 'Unable to open billing portal' });
