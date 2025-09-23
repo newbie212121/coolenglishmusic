@@ -86,18 +86,24 @@ export default function Dashboard() {
 
   // Check authentication on mount
   useEffect(() => {
-    if (!isAuthenticated) {
+    // Only redirect if we're certain user is not authenticated
+    // Don't redirect while loading to prevent loops
+    if (!loading && !isAuthenticated) {
       router.push('/login?next=/dashboard');
       return;
     }
     
-    if (!isMember) {
+    // Only check membership after authentication is confirmed
+    if (!loading && isAuthenticated && !isMember) {
       router.push('/pricing');
       return;
     }
     
-    loadUserData();
-  }, [isAuthenticated, isMember]);
+    // Load user data only if authenticated
+    if (isAuthenticated) {
+      loadUserData();
+    }
+  }, [isAuthenticated, isMember, loading]);
 
   const loadUserData = async () => {
     try {
@@ -142,13 +148,15 @@ export default function Dashboard() {
       
       if (response.ok) {
         const data = await response.json();
-        // Mock subscription data for now - will be replaced with real data
+        // Properly determine plan type and amount based on actual subscription
+        const isAnnual = data.interval === 'year' || data.plan?.includes('annual') || data.amount === 1500;
+        
         setSubscription({
-          status: 'active',
+          status: data.status || 'active',
           plan: data.subscriptionType || 'individual',
           currentPeriodEnd: data.currentPeriodEnd || Date.now() + 30 * 24 * 60 * 60 * 1000,
-          amount: 200, // $2.00 in cents
-          interval: 'month'
+          amount: isAnnual ? 1500 : 200, // $15.00 annual or $2.00 monthly in cents
+          interval: isAnnual ? 'year' : 'month'
         });
       }
     } catch (error) {
