@@ -127,6 +127,11 @@ export default function Dashboard() {
   const loadSubscription = async () => {
     try {
       const idToken = await getIdToken();
+      if (!idToken) {
+        console.log('No token available for subscription check');
+        return;
+      }
+      
       const response = await fetch(`${API_BASE}/members/status`, {
         headers: {
           'Authorization': `Bearer ${idToken}`
@@ -205,6 +210,12 @@ export default function Dashboard() {
     setIsLoadingPortal(true);
     try {
       const idToken = await getIdToken();
+      
+      if (!idToken) {
+        setMessage({ type: 'error', text: 'Please log in again' });
+        setIsLoadingPortal(false);
+        return;
+      }
       
       // Your create-checkout-session Lambda actually creates portal sessions
       const response = await fetch('https://api.coolenglishmusic.com/create-checkout-session', {
