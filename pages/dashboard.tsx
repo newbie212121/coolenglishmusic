@@ -144,14 +144,21 @@ export default function Dashboard() {
         const data = await response.json();
         console.log('Subscription data from API:', data); // Debug log
         
-        // Check what fields are actually returned
-        // We'll use this info to properly detect annual vs monthly
+        // Calculate if annual based on period end date
+        const now = Date.now();
+        const periodEnd = data.currentPeriodEnd || now;
+        const daysUntilEnd = (periodEnd - now) / (1000 * 60 * 60 * 24);
+        
+        // If more than 40 days until period end, it's likely annual
+        // Monthly subs renew every ~30 days, annual every ~365 days
+        const isAnnual = daysUntilEnd > 40;
+        
         setSubscription({
-          status: 'active',
+          status: data.status || 'active',
           plan: data.subscriptionType || 'individual',
-          currentPeriodEnd: data.currentPeriodEnd || Date.now() + 30 * 24 * 60 * 60 * 1000,
-          amount: 200, // $2.00 in cents - temporarily hardcoded
-          interval: 'month'
+          currentPeriodEnd: periodEnd,
+          amount: isAnnual ? 1500 : 200, // $15.00 annual or $2.00 monthly in cents
+          interval: isAnnual ? 'year' : 'month'
         });
       }
     } catch (error) {
