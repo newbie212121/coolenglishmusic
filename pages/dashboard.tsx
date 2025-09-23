@@ -464,14 +464,16 @@ export default function Dashboard() {
                           <div>
                             <p className="text-sm text-gray-400 mb-1">Plan Type</p>
                             <p className="text-white font-medium capitalize">
-                              {subscription.interval === 'year' ? 'Annual' : 'Monthly'} Plan
+                              {subscription.plan} Plan
                             </p>
                           </div>
                           <div>
                             <p className="text-sm text-gray-400 mb-1">Billing Cycle</p>
                             <p className="text-white font-medium flex items-center gap-1">
                               <DollarSign className="w-4 h-4" />
-                              {formatPrice(subscription.amount)} / {subscription.interval}
+                              {subscription.interval === 'year' 
+                                ? `${formatPrice(subscription.amount)} / year`
+                                : `${formatPrice(subscription.amount)} / month`}
                             </p>
                           </div>
                           <div>
