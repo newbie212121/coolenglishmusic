@@ -6,7 +6,7 @@ import { amplifyConfig } from "@/lib/amplify-config";
 import { AuthProvider } from "@/context/AuthContext";
 import Layout from "@/components/Layout";
 import AuthGate from "@/components/AuthGate";
-import { useDeviceTracking } from "@/hooks/useDeviceTracking"; // Add this import
+import { useDeviceTracking } from "@/lib/useDeviceTracking";  // Changed from @/hooks to @/lib
 
 Amplify.configure(amplifyConfig);
 
