@@ -36,23 +36,30 @@ export default function SharePage() {
     }
   };
 
+// Replace the startActivity function in pages/share/[code].tsx with this:
+
 const startActivity = async () => {
   setAccessing(true);
   try {
-    // Use the grant-access endpoint with no auth for free activities
-    const response = await fetch(`/api/grant-access?prefix=${encodeURIComponent(activity.s3Prefix)}`);
+    // Call the new grant-share-access endpoint with the share code
+    const response = await fetch(`/api/grant-share-access?code=${code}`, {
+      method: 'GET',
+      credentials: 'include' // Important: allows cookies to be set
+    });
     
     if (response.ok) {
       const data = await response.json();
       if (data.activityUrl) {
+        // Redirect to the CloudFront activity URL
         window.location.href = data.activityUrl;
       }
     } else {
-      setError('Failed to access activity');
+      const errorData = await response.json();
+      setError(errorData.message || 'Failed to access activity');
     }
   } catch (err) {
     console.error('Failed to access activity:', err);
-    setError('Failed to start activity');
+    setError('Failed to start activity. Please try again.');
   } finally {
     setAccessing(false);
   }

@@ -397,28 +397,37 @@ export default function Dashboard() {
                     Account Settings
                   </h2>
 
-                  {/* Email Section */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
-                      Email Address
-                    </label>
-                    <div className="flex gap-2">
-                      <input
-                        type="email"
-                        value={newEmail || email}
-                        onChange={(e) => setNewEmail(e.target.value)}
-                        placeholder={email}
-                        className="flex-1 px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-green-500"
-                      />
-                      <button
-                        onClick={handleEmailUpdate}
-                        disabled={!newEmail || newEmail === email || saving}
-                        className="px-4 py-2 bg-green-500 hover:bg-green-600 disabled:bg-gray-700 text-white rounded-lg transition-all"
-                      >
-                        {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Check className="w-5 h-5" />}
-                      </button>
-                    </div>
-                  </div>
+                  // In dashboard.tsx, ensure this is in the Account Settings tab:
+
+{/* Email Section - Make sure this replaces your current email section */}
+<div>
+  <label className="block text-sm font-medium text-gray-300 mb-2">
+    Email Address
+  </label>
+  <div className="flex gap-2">
+    <input
+      type="email"
+      value={newEmail}
+      onChange={(e) => setNewEmail(e.target.value)}
+      placeholder={email || "your@email.com"}
+      className="flex-1 px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-green-500"
+    />
+    <button
+      onClick={handleEmailUpdate}
+      disabled={!newEmail || newEmail === email || saving}
+      className="px-4 py-2 bg-green-500 hover:bg-green-600 disabled:bg-gray-700 text-white rounded-lg transition-all flex items-center gap-2"
+    >
+      {saving ? (
+        <Loader2 className="w-4 h-4 animate-spin" />
+      ) : (
+        <Check className="w-4 h-4" />
+      )}
+    </button>
+  </div>
+  {email && newEmail && newEmail !== email && (
+    <p className="text-xs text-green-400 mt-2">Press check to update to: {newEmail}</p>
+  )}
+</div>
 
                   {/* Password Section */}
                   <div className="border-t border-gray-700 pt-6">
