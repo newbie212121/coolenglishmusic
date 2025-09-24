@@ -36,33 +36,27 @@ export default function SharePage() {
     }
   };
 
-  const startActivity = async () => {
-    setAccessing(true);
-    try {
-      // Grant access without authentication for share links
-      const response = await fetch(`/api/grant-access`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          prefix: activity.s3Prefix,
-          isShareLink: true,
-          shareCode: code
-        })
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        if (data.activityUrl) {
-          window.location.href = data.activityUrl;
-        }
+const startActivity = async () => {
+  setAccessing(true);
+  try {
+    // Use the grant-access endpoint with no auth for free activities
+    const response = await fetch(`/api/grant-access?prefix=${encodeURIComponent(activity.s3Prefix)}`);
+    
+    if (response.ok) {
+      const data = await response.json();
+      if (data.activityUrl) {
+        window.location.href = data.activityUrl;
       }
-    } catch (err) {
-      console.error('Failed to access activity:', err);
-      setError('Failed to start activity. Please try again.');
-    } finally {
-      setAccessing(false);
+    } else {
+      setError('Failed to access activity');
     }
-  };
+  } catch (err) {
+    console.error('Failed to access activity:', err);
+    setError('Failed to start activity');
+  } finally {
+    setAccessing(false);
+  }
+};
 
   if (loading) {
     return (
