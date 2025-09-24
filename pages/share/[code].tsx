@@ -41,7 +41,7 @@ export default function SharePage() {
 const startActivity = async () => {
   setAccessing(true);
   try {
-    // Call the new grant-share-access endpoint with the share code
+    // Call the NEW grant-share-access endpoint with the share CODE, not the prefix!
     const response = await fetch(`/api/grant-share-access?code=${code}`, {
       method: 'GET',
       credentials: 'include' // Important: allows cookies to be set
@@ -49,13 +49,15 @@ const startActivity = async () => {
     
     if (response.ok) {
       const data = await response.json();
-      if (data.activityUrl) {
-        // Redirect to the CloudFront activity URL
+      if (data.success && data.activityUrl) {
+        // Redirect to the activity URL (should include index.html)
         window.location.href = data.activityUrl;
+      } else {
+        setError('Failed to access activity');
       }
     } else {
       const errorData = await response.json();
-      setError(errorData.message || 'Failed to access activity');
+      setError(errorData.message || errorData.error || 'Failed to access activity');
     }
   } catch (err) {
     console.error('Failed to access activity:', err);
