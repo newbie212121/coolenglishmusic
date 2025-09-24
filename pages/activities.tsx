@@ -1,6 +1,7 @@
 // pages/activities.tsx
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/router";
+import { toast } from 'react-hot-toast';
 import { fetchAuthSession } from "aws-amplify/auth";
 import { 
   Search, 
@@ -257,7 +258,42 @@ export default function ActivitiesPage() {
       router.push('/signup');
     }
   };
-
+ const handleShare = async (activity: Activity) => {
+    try {
+      const session = await fetchAuthSession();
+      const token = session.tokens?.idToken?.toString();
+      
+      if (!token) {
+        alert('Please log in to share activities');
+        return;
+      }
+      
+      const response = await fetch(`${API_BASE}/create-share-link`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          activityId: activity.id,
+          title: activity.title,
+          artist: activity.artist,
+          s3Prefix: activity.s3Prefix
+        })
+      });
+      
+      if (response.ok) {
+        const { shareUrl } = await response.json();
+        await navigator.clipboard.writeText(shareUrl);
+        alert(`Share link copied! Valid for 6 days.\n${shareUrl}`);
+      } else {
+        alert('Failed to create share link');
+      }
+    } catch (error) {
+      console.error('Error sharing:', error);
+      alert('Failed to create share link');
+    }
+  };
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-gray-900 to-black flex items-center justify-center">
@@ -449,15 +485,15 @@ export default function ActivitiesPage() {
                   </button>
                   
                   <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      alert("Share feature coming soon!");
-                    }}
-                    className="p-1.5 bg-black/50 backdrop-blur-sm rounded-full hover:bg-black/70 transition-all group"
-                    title="Share activity (Coming soon)"
-                  >
-                    <Share2 className="w-4 h-4 text-white group-hover:text-blue-400 transition-colors" />
-                  </button>
+  onClick={(e) => {
+    e.stopPropagation();
+    handleShare(activity);  // Changed from alert to handleShare
+  }}
+  className="p-1.5 bg-black/50 backdrop-blur-sm rounded-full hover:bg-black/70 transition-all group"
+  title="Share with students (6-day link)"
+>
+  <Share2 className="w-4 h-4 text-white group-hover:text-blue-400 transition-colors" />
+</button>
                 </div>
 
                 {/* Play Button Overlay */}
