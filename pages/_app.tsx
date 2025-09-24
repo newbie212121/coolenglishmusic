@@ -6,20 +6,26 @@ import { amplifyConfig } from "@/lib/amplify-config";
 import { AuthProvider } from "@/context/AuthContext";
 import Layout from "@/components/Layout";
 import AuthGate from "@/components/AuthGate";
-import { useDeviceTracking } from "@/lib/useDeviceTracking";  // Changed from @/hooks to @/lib
+import { useDeviceTracking } from "@/lib/useDeviceTracking";
 
 Amplify.configure(amplifyConfig);
 
+// Create a wrapper component that uses the hook INSIDE AuthProvider
+function AppWithDeviceTracking({ children }: { children: React.ReactNode }) {
+  useDeviceTracking();
+  return <>{children}</>;
+}
+
 export default function App({ Component, pageProps }: AppProps) {
-  useDeviceTracking(); // Add this line here
-  
   return (
     <AuthProvider>
-      <AuthGate>
-        <Layout>
-          <Component {...pageProps} />
-        </Layout>
-      </AuthGate>
+      <AppWithDeviceTracking>
+        <AuthGate>
+          <Layout>
+            <Component {...pageProps} />
+          </Layout>
+        </AuthGate>
+      </AppWithDeviceTracking>
     </AuthProvider>
   );
 }
