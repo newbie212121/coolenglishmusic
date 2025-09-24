@@ -1,7 +1,6 @@
 // pages/activities.tsx
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/router";
-import { toast } from 'react-hot-toast';
 import { fetchAuthSession } from "aws-amplify/auth";
 import { 
   Search, 
