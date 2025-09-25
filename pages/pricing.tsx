@@ -7,14 +7,11 @@ import { useAuth } from '@/context/AuthContext';
 const PricingPage = () => {
   const router = useRouter();
   const { isAuthenticated, getIdToken } = useAuth();
-  const [seatCount, setSeatCount] = useState(5);
+  const [teamSeats, setTeamSeats] = useState(5);
   const [loading, setLoading] = useState(false);
   
-  const monthlyPrice = seatCount * 1.75;
-  const yearlyPrice = seatCount * 18;
-  
-  const createTeamCheckout = async () => {
-    // Check if user is logged in first
+  // Individual plans
+  const handleIndividualPurchase = async (priceId: string, annual: boolean = false) => {
     if (!isAuthenticated) {
       router.push('/login?redirect=/pricing');
       return;
@@ -24,8 +21,47 @@ const PricingPage = () => {
     try {
       const token = await getIdToken();
       if (!token) {
-        alert('Please log in to create a team subscription');
-        router.push('/login?redirect=/pricing');
+        router.push('/login');
+        return;
+      }
+      
+      // Use your existing checkout creation endpoint
+      const response = await fetch('https://api.coolenglishmusic.com/create-checkout', {
+        method: 'POST',
+        headers: {
+          'Authorization': token, // Note: just token, not Bearer
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          priceId: annual ? 'price_1Ps6hbGovzMa8KUC5qTGppei' : 'price_1Ps6gTGovzMa8KUCXQWShPwI',
+          mode: 'subscription'
+        })
+      });
+      
+      const data = await response.json();
+      if (data.sessionUrl) {
+        window.location.href = data.sessionUrl;
+      }
+    } catch (error) {
+      console.error('Checkout error:', error);
+      alert('Failed to create checkout session');
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  // Team checkout
+  const handleTeamPurchase = async () => {
+    if (!isAuthenticated) {
+      router.push('/login?redirect=/pricing');
+      return;
+    }
+    
+    setLoading(true);
+    try {
+      const token = await getIdToken();
+      if (!token) {
+        router.push('/login');
         return;
       }
       
@@ -36,98 +72,117 @@ const PricingPage = () => {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          seatCount: seatCount
+          seatCount: teamSeats
         })
       });
       
       if (!response.ok) {
         const error = await response.json();
-        alert(error.error || 'Failed to create checkout session');
+        console.error('Team checkout error:', error);
+        alert(error.error || 'Failed to create team checkout');
         return;
       }
       
       const data = await response.json();
       if (data.sessionUrl) {
         window.location.href = data.sessionUrl;
-      } else {
-        alert('Failed to get checkout URL');
       }
     } catch (error) {
-      console.error('Error creating checkout:', error);
-      alert('Failed to create checkout session. Please try again.');
+      console.error('Error:', error);
+      alert('Failed to create checkout session');
     } finally {
       setLoading(false);
     }
   };
   
-  const createIndividualCheckout = async () => {
-    // Similar logic for individual subscriptions
-    if (!isAuthenticated) {
-      router.push('/login?redirect=/pricing');
-      return;
-    }
-    
-    // Use your existing individual subscription flow
-    router.push('/subscribe');
-  };
-  
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-900 to-black py-12">
-      <div className="max-w-6xl mx-auto px-4">
+      <div className="max-w-7xl mx-auto px-4">
         <h1 className="text-4xl font-bold text-white text-center mb-8">
           Simple, Transparent Pricing
         </h1>
         
-        <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
-          {/* Individual Plan */}
-          <div className="bg-gray-800 rounded-lg p-8">
-            <h2 className="text-2xl font-bold text-white mb-2">Individual</h2>
-            <p className="text-gray-400 mb-4">For solo teachers</p>
-            
-            <div className="mb-6">
-              <span className="text-4xl font-bold text-white">$2</span>
-              <span className="text-gray-400">/month</span>
+        {/* Individual Plans */}
+        <div className="max-w-4xl mx-auto mb-12">
+          <h2 className="text-2xl font-semibold text-white text-center mb-6">
+            For Individual Teachers
+          </h2>
+          <div className="grid md:grid-cols-2 gap-6">
+            {/* Monthly */}
+            <div className="bg-gray-800 rounded-lg p-8">
+              <h3 className="text-xl font-bold text-white mb-2">Monthly</h3>
+              <div className="mb-4">
+                <span className="text-4xl font-bold text-white">$2</span>
+                <span className="text-gray-400">/month</span>
+              </div>
+              <ul className="space-y-2 mb-6">
+                <li className="flex items-start gap-2">
+                  <Check className="w-5 h-5 text-green-500 mt-0.5" />
+                  <span className="text-white">Access all 160+ activities</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <Check className="w-5 h-5 text-green-500 mt-0.5" />
+                  <span className="text-white">Cancel anytime</span>
+                </li>
+              </ul>
+              <button
+                onClick={() => handleIndividualPurchase('monthly', false)}
+                disabled={loading}
+                className="w-full py-3 bg-green-500 hover:bg-green-600 disabled:bg-gray-600 text-white rounded-lg font-semibold"
+              >
+                Get Started
+              </button>
             </div>
             
-            <p className="text-sm text-gray-400 mb-6">
-              or $20/year (first year $15)
-            </p>
-            
-            <ul className="space-y-3 mb-8">
-              <li className="flex items-start gap-2">
-                <Check className="w-5 h-5 text-green-500 mt-0.5" />
-                <span className="text-white">Access to all 160+ activities</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <Check className="w-5 h-5 text-green-500 mt-0.5" />
-                <span className="text-white">Favorites & playlists</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <Check className="w-5 h-5 text-green-500 mt-0.5" />
-                <span className="text-white">Cancel anytime</span>
-              </li>
-            </ul>
-            
-            <button
-              onClick={createIndividualCheckout}
-              className="w-full py-3 bg-green-500 hover:bg-green-600 text-white rounded-lg font-semibold transition-colors"
-            >
-              Get Started
-            </button>
+            {/* Annual */}
+            <div className="bg-gray-800 rounded-lg p-8 border-2 border-green-500">
+              <div className="bg-green-500 text-white text-xs px-2 py-1 rounded inline-block mb-2">
+                BEST VALUE
+              </div>
+              <h3 className="text-xl font-bold text-white mb-2">Annual</h3>
+              <div className="mb-4">
+                <span className="text-4xl font-bold text-white">$15</span>
+                <span className="text-gray-400">/year</span>
+                <p className="text-sm text-green-400 mt-1">First year only, then $20/year</p>
+              </div>
+              <ul className="space-y-2 mb-6">
+                <li className="flex items-start gap-2">
+                  <Check className="w-5 h-5 text-green-500 mt-0.5" />
+                  <span className="text-white">Save $9 first year!</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <Check className="w-5 h-5 text-green-500 mt-0.5" />
+                  <span className="text-white">All features included</span>
+                </li>
+              </ul>
+              <button
+                onClick={() => handleIndividualPurchase('annual', true)}
+                disabled={loading}
+                className="w-full py-3 bg-green-500 hover:bg-green-600 disabled:bg-gray-600 text-white rounded-lg font-semibold"
+              >
+                Get Started
+              </button>
+            </div>
           </div>
-          
-          {/* Team Plan */}
-          <div className="bg-gray-800 rounded-lg p-8 border-2 border-green-500">
-            <div className="flex items-center justify-between mb-2">
-              <h2 className="text-2xl font-bold text-white">Team</h2>
-              <span className="bg-green-500 text-white text-sm px-2 py-1 rounded">
+        </div>
+        
+        {/* Team Plan */}
+        <div className="max-w-4xl mx-auto">
+          <h2 className="text-2xl font-semibold text-white text-center mb-6">
+            For Schools & Teams
+          </h2>
+          <div className="bg-gray-800 rounded-lg p-8">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-bold text-white">Team License</h3>
+              <span className="bg-green-500 text-white text-sm px-3 py-1 rounded">
                 Save 15%
               </span>
             </div>
-            <p className="text-gray-400 mb-4">For schools & groups</p>
             
             <div className="mb-6">
-              <span className="text-4xl font-bold text-white">${monthlyPrice.toFixed(2)}</span>
+              <span className="text-4xl font-bold text-white">
+                ${(teamSeats * 1.75).toFixed(2)}
+              </span>
               <span className="text-gray-400">/month</span>
             </div>
             
@@ -140,30 +195,30 @@ const PricingPage = () => {
                   type="range"
                   min="2"
                   max="50"
-                  value={seatCount}
-                  onChange={(e) => setSeatCount(parseInt(e.target.value))}
+                  value={teamSeats}
+                  onChange={(e) => setTeamSeats(parseInt(e.target.value))}
                   className="flex-1"
                 />
                 <input
                   type="number"
                   min="2"
                   max="50"
-                  value={seatCount}
+                  value={teamSeats}
                   onChange={(e) => {
                     const value = parseInt(e.target.value);
                     if (value >= 2 && value <= 50) {
-                      setSeatCount(value);
+                      setTeamSeats(value);
                     }
                   }}
-                  className="w-16 px-2 py-1 bg-gray-600 text-white rounded text-center"
+                  className="w-20 px-2 py-1 bg-gray-600 text-white rounded text-center"
                 />
               </div>
               <p className="text-xs text-gray-400 mt-2">
-                {seatCount} seats × $1.75 = ${monthlyPrice.toFixed(2)}/month
+                {teamSeats} seats × $1.75 = ${(teamSeats * 1.75).toFixed(2)}/month
               </p>
             </div>
             
-            <ul className="space-y-3 mb-8">
+            <ul className="space-y-2 mb-6">
               <li className="flex items-start gap-2">
                 <Check className="w-5 h-5 text-green-500 mt-0.5" />
                 <span className="text-white">Everything in Individual</span>
@@ -176,18 +231,14 @@ const PricingPage = () => {
                 <Check className="w-5 h-5 text-green-500 mt-0.5" />
                 <span className="text-white">Add/remove teachers anytime</span>
               </li>
-              <li className="flex items-start gap-2">
-                <Check className="w-5 h-5 text-green-500 mt-0.5" />
-                <span className="text-white">$1.75 per teacher (15% off)</span>
-              </li>
             </ul>
             
             <button
-              onClick={createTeamCheckout}
+              onClick={handleTeamPurchase}
               disabled={loading}
-              className="w-full py-3 bg-green-500 hover:bg-green-600 disabled:bg-gray-600 text-white rounded-lg font-semibold transition-colors"
+              className="w-full py-3 bg-green-500 hover:bg-green-600 disabled:bg-gray-600 text-white rounded-lg font-semibold"
             >
-              {loading ? 'Creating checkout...' : `Start Team (${seatCount} seats)`}
+              {loading ? 'Creating checkout...' : `Start Team (${teamSeats} seats)`}
             </button>
           </div>
         </div>
@@ -195,11 +246,11 @@ const PricingPage = () => {
         {/* Enterprise */}
         <div className="mt-12 text-center">
           <p className="text-gray-400 mb-4">
-            Need more than 50 seats? Have special requirements?
+            Need more than 50 seats?
           </p>
           <button
-            onClick={() => window.location.href = 'mailto:support@coolenglishmusic.com?subject=Enterprise Pricing Inquiry'}
-            className="px-6 py-3 border border-gray-600 text-white rounded-lg hover:bg-gray-800 transition-colors"
+            onClick={() => window.location.href = 'mailto:support@coolenglishmusic.com?subject=Enterprise Pricing'}
+            className="px-6 py-3 border border-gray-600 text-white rounded-lg hover:bg-gray-800"
           >
             Contact Us for Enterprise Pricing
           </button>
