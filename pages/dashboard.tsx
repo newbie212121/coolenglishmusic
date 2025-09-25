@@ -196,59 +196,7 @@ export default function Dashboard() {
     }
   };
 
-// In dashboard.tsx, replace the createFavoriteList function with this:
 
-const createFavoriteList = async () => {
-  if (!newListName.trim()) return;
-  
-  setCreatingList(true);
-  try {
-    const idToken = await getIdToken();
-    if (!idToken) {
-      setMessage({ type: 'error', text: 'Please log in again' });
-      return;
-    }
-    
-    const response = await fetch(`${API_BASE}/favorite-lists`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${idToken}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        name: newListName.trim()
-      })
-    });
-    
-    if (response.ok) {
-      const data = await response.json();
-      
-      // Add the new empty list to the state immediately
-      const newList = {
-        listId: data.listId || newListName.toLowerCase().replace(/\s+/g, '-'),
-        name: newListName.trim(),
-        activities: [],
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      };
-      
-      // Update the lists state to include the new empty list
-      setFavoriteLists(prev => [...prev, newList]);
-      
-      setMessage({ type: 'success', text: 'List created successfully!' });
-      setNewListName('');
-      setShowCreateList(false);
-    } else {
-      const error = await response.json();
-      setMessage({ type: 'error', text: error.error || 'Failed to create list' });
-    }
-  } catch (error) {
-    console.error('Error creating list:', error);
-    setMessage({ type: 'error', text: 'Failed to create list' });
-  } finally {
-    setCreatingList(false);
-  }
-};
 
   // Update list name
   const updateListName = async (listId: string) => {
