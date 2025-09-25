@@ -193,7 +193,7 @@ const fetchFavorites = async () => {
       
       if (response.ok) {
         const data = await response.json();
-        const favoriteIds = new Set(data.favorites.map((f: any) => f.activityId));
+        const favoriteIds = new Set<string>(data.favorites.map((f: any) => f.activityId));
         setFavorites(favoriteIds);
       }
     }
