@@ -127,31 +127,6 @@ export default function Dashboard() {
       // Load subscription data
       await loadSubscription();
     
-// Add this function after loadSubscription (around line 119)
-  const testGroupAPI = async () => {
-    try {
-      const idToken = await getIdToken();
-      if (!idToken) {
-        alert('No token found - please log in');
-        return;
-      }
-      
-      const response = await fetch('https://api.coolenglishmusic.com/groups', {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${idToken}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      const data = await response.json();
-      console.log('Group API Response:', data);
-      alert('Group API Response: ' + JSON.stringify(data));
-    } catch (error: any) {
-      console.error('Error:', error);
-      alert('Error: ' + (error?.message || 'Unknown error'));
-    }
-  };
   
       // Load favorites lists
       await loadFavoriteLists();
@@ -197,7 +172,31 @@ export default function Dashboard() {
       console.error('Error loading subscription:', error);
     }
   };
-
+// Add this function after loadSubscription (around line 119)
+  const testGroupAPI = async () => {
+    try {
+      const idToken = await getIdToken();
+      if (!idToken) {
+        alert('No token found - please log in');
+        return;
+      }
+      
+      const response = await fetch('https://api.coolenglishmusic.com/groups', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${idToken}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      const data = await response.json();
+      console.log('Group API Response:', data);
+      alert('Group API Response: ' + JSON.stringify(data));
+    } catch (error: any) {
+      console.error('Error:', error);
+      alert('Error: ' + (error?.message || 'Unknown error'));
+    }
+  };
   // Load favorite lists from API
   const loadFavoriteLists = async () => {
     setLoadingLists(true);
