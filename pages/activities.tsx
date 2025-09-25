@@ -143,35 +143,48 @@ export default function ActivitiesPage() {
     }
   };
 
-  const fetchFavorites = async () => {
-    try {
-      const session = await fetchAuthSession();
-      const token = session?.tokens?.idToken?.toString();
+const fetchFavorites = async () => {
+  try {
+    const session = await fetchAuthSession();
+    const token = session?.tokens?.idToken?.toString();
+    
+    if (token) {
+      const response = await fetch(`${API_BASE}/favorite-lists`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
       
-      if (token) {
-        const response = await fetch(`${API_BASE}/favorite-lists`, {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
+      if (response.ok) {
+        const data = await response.json();
+        
+        // Create a set of all favorited activity IDs across all lists
+        const favoriteIds = new Set<string>();
+        const allLists = [];
+        
+        // Process each list
+        (data.lists || []).forEach((list: any) => {
+          // Add to allLists even if empty
+          allLists.push({
+            listId: list.listId,
+            name: list.name,
+            activities: list.activities || []
+          });
+          
+          // Add activity IDs to favorites set
+          list.activities?.forEach((activity: any) => {
+            favoriteIds.add(activity.activityId);
+          });
         });
         
-        if (response.ok) {
-          const data = await response.json();
-          // Create a set of all favorited activity IDs across all lists
-          const favoriteIds = new Set<string>();
-          data.lists?.forEach((list: any) => {
-            list.activities?.forEach((activity: any) => {
-              favoriteIds.add(activity.activityId);
-            });
-          });
-          setFavorites(favoriteIds);
-          setFavoriteLists(data.lists || []);
-        }
+        setFavorites(favoriteIds);
+        setFavoriteLists(allLists); // This now includes empty lists
       }
-    } catch (error) {
-      console.error("Error fetching favorites:", error);
     }
-  };
+  } catch (error) {
+    console.error("Error fetching favorites:", error);
+  }
+};
 
   // Open modal to select/create list - NO SUBSCRIPTION CHECK
   const openFavoriteModal = async (e: React.MouseEvent, activity: Activity) => {
