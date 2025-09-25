@@ -1,199 +1,172 @@
-// pages/pricing.tsx - Best Practices Version
-import { useState } from "react";
-import { useRouter } from "next/router";
-import { getCurrentUser } from "aws-amplify/auth";
+// pages/pricing.tsx - FIXED to work with your AuthContext
+import { useState } from 'react';
+import { useRouter } from 'next/router';
+import { useAuth } from '@/context/AuthContext';
+import { fetchAuthSession } from 'aws-amplify/auth';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "https://api.coolenglishmusic.com";
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'https://api.coolenglishmusic.com';
 
-const STRIPE_PRICE_IDS = {
-  monthly: "price_1S6I4wEWbhWs9Y6oRzBGIh8e",
-  annual: "price_1S6I5FEWbhWs9Y6oGs4CQEc2"
-};
-
-export default function PricingPage() {
+export default function Pricing() {
   const router = useRouter();
-  const [loadingPlan, setLoadingPlan] = useState<"monthly" | "annual" | null>(null);
-  const [error, setError] = useState<string>("");
+  const { isAuthenticated, getIdToken } = useAuth();
+  const [loading, setLoading] = useState<'monthly' | 'annual' | null>(null);
+  const [error, setError] = useState('');
 
-  const handleSubscribe = async (plan: "monthly" | "annual") => {
-    setLoadingPlan(plan);
-    setError("");
+  const handleCheckout = async (plan: 'monthly' | 'annual') => {
+    // Check authentication first
+    if (!isAuthenticated) {
+      router.push('/login?redirect=/pricing');
+      return;
+    }
+    
+    setLoading(plan);
+    setError('');
     
     try {
-      // Step 1: Check if user is logged in and get their info
-      let userId: string;
-      let userEmail: string = "";
+      // Get the session to extract userId and email
+      const session = await fetchAuthSession();
+      const idToken = session.tokens?.idToken;
       
-      try {
-        const user = await getCurrentUser();
-        userId = user.userId;  // Cognito UUID
-        userEmail = user.signInDetails?.loginId || "";
-        console.log("User authenticated:", userId);
-      } catch {
-        // Not logged in - redirect to login
-        console.log("User not authenticated, redirecting to login");
-        sessionStorage.setItem("pendingPlan", plan);
-        sessionStorage.setItem("postLoginRedirect", "/pricing");
-        router.push("/login");
-        return;
+      if (!idToken) {
+        throw new Error('No authentication token found');
       }
-
-      // Step 2: Create Stripe checkout session
-      console.log("Creating checkout session for plan:", plan);
-      const res = await fetch(`${API_BASE}/create-checkout-session`, {
-        method: "POST",
-        headers: { 
-          "Content-Type": "application/json"
+      
+      // Extract userId and email from the token payload
+      const userId = idToken.payload.sub as string; // This is the Cognito UUID
+      const userEmail = (idToken.payload.email || idToken.payload['cognito:username']) as string;
+      
+      // Use your EXISTING create-checkout-session endpoint
+      const priceId = plan === 'annual' 
+        ? 'price_1Ps6hbGovzMa8KUC5qTGppei'  // Your annual price ID
+        : 'price_1Ps6gTGovzMa8KUCXQWShPwI'; // Your monthly price ID
+      
+      const response = await fetch(`${API_BASE}/create-checkout-session`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ 
-          priceId: STRIPE_PRICE_IDS[plan],
-          userId: userId,      // Pass Cognito UUID
-          email: userEmail     // Pass email for Stripe customer
-        }),
+        body: JSON.stringify({
+          priceId: priceId,
+          userId: userId,
+          email: userEmail
+        })
       });
 
-      const data = await res.json();
-      
-      if (!res.ok) {
-        throw new Error(data.error || data.message || "Failed to create checkout session");
-      }
+      const data = await response.json();
       
       if (data.url) {
-        console.log("Redirecting to Stripe checkout");
+        // Redirect to Stripe
         window.location.href = data.url;
       } else {
-        throw new Error("No checkout URL received");
+        throw new Error(data.error || 'No checkout URL received');
       }
       
-    } catch (error: any) {
-      console.error("Checkout error:", error);
-      setError(error.message || "Failed to start checkout. Please try again.");
+    } catch (err: any) {
+      console.error('Checkout error:', err);
+      setError(err.message || 'Failed to start checkout. Please try again.');
     } finally {
-      setLoadingPlan(null);
+      setLoading(null);
     }
   };
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-white">
-      {/* Hero Section */}
-      <div className="max-w-6xl mx-auto px-4 pt-20 pb-16">
-        <h1 className="text-5xl font-bold text-center mb-4">
+    <div className="min-h-screen bg-gradient-to-b from-gray-900 to-black py-12">
+      <div className="max-w-4xl mx-auto px-4">
+        <h1 className="text-4xl font-bold text-white text-center mb-4">
           Choose Your Plan
         </h1>
-        <div className="w-24 h-1 bg-green-500 mx-auto mb-8"></div>
-        <p className="text-center text-gray-400 text-lg">
+        <p className="text-gray-400 text-center mb-8">
           Unlock unlimited access to interactive music activities for English learning
         </p>
         
-        {/* Error Message */}
         {error && (
-          <div className="mt-6 p-4 bg-red-900/20 border border-red-800 rounded-lg text-red-400 text-center">
+          <div className="bg-red-500/20 border border-red-500 text-red-300 p-4 rounded-lg mb-6">
             {error}
           </div>
         )}
-      </div>
 
-      {/* Pricing Cards */}
-      <div className="max-w-5xl mx-auto px-4 pb-20">
-        <div className="grid md:grid-cols-2 gap-8">
-          
-          {/* Monthly Plan */}
-          <div className="bg-[#111111] rounded-2xl border border-gray-800 p-8 hover:border-gray-700 transition-all">
-            <div className="text-center mb-8">
-              <h2 className="text-2xl font-semibold mb-4">Monthly</h2>
-              <div className="flex items-baseline justify-center gap-1">
-                <span className="text-5xl font-bold">$2</span>
-                <span className="text-gray-400">/month</span>
-              </div>
-              <p className="text-gray-500 text-sm mt-2">
-                Perfect for trying things out
-              </p>
-            </div>
-
-            <ul className="space-y-3 mb-8">
-              <li className="flex items-center gap-2">
-                <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
-                </svg>
-                <span>Unlimited Activity Access</span>
+        <div className="grid md:grid-cols-2 gap-6">
+          {/* Monthly */}
+          <div className="bg-gray-800 rounded-lg p-8 border border-gray-700">
+            <h2 className="text-2xl font-bold text-white mb-4">Monthly</h2>
+            <p className="text-4xl font-bold text-white mb-2">
+              $2<span className="text-lg text-gray-400">/month</span>
+            </p>
+            <p className="text-gray-400 mb-6">Perfect for trying things out</p>
+            
+            <ul className="mb-8 space-y-3">
+              <li className="flex items-center text-gray-300">
+                <span className="text-green-500 mr-2">✓</span>
+                Unlimited Activity Access
               </li>
-              <li className="flex items-center gap-2">
-                <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
-                </svg>
-                <span>Weekly New Content</span>
+              <li className="flex items-center text-gray-300">
+                <span className="text-green-500 mr-2">✓</span>
+                Weekly New Content
               </li>
-              <li className="flex items-center gap-2">
-                <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
-                </svg>
-                <span>Cancel Anytime</span>
+              <li className="flex items-center text-gray-300">
+                <span className="text-green-500 mr-2">✓</span>
+                Cancel Anytime
               </li>
             </ul>
-
+            
             <button
-              onClick={() => handleSubscribe("monthly")}
-              disabled={loadingPlan !== null}
-              className="w-full py-3 bg-gray-700 hover:bg-gray-600 disabled:bg-gray-800 text-white rounded-lg font-semibold transition-all disabled:opacity-50"
+              onClick={() => handleCheckout('monthly')}
+              disabled={loading !== null}
+              className="w-full py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white rounded-lg font-semibold transition-colors"
             >
-              {loadingPlan === "monthly" ? "Loading..." : "Subscribe Monthly"}
+              {loading === 'monthly' ? 'Loading...' : 'Subscribe Monthly'}
             </button>
           </div>
 
-          {/* Annual Plan */}
-          <div className="relative bg-[#111111] rounded-2xl border-2 border-green-600 p-8">
-            <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-green-600 text-black px-4 py-1 rounded-full text-sm font-bold">
-              BEST VALUE
+          {/* Annual */}
+          <div className="bg-gray-800 rounded-lg p-8 border-2 border-green-500 relative">
+            <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
+              <span className="bg-green-500 text-white text-sm px-4 py-1 rounded-full font-semibold">
+                BEST VALUE
+              </span>
             </div>
             
-            <div className="text-center mb-8">
-              <h2 className="text-2xl font-semibold mb-4">Annual</h2>
-              <div className="flex items-baseline justify-center gap-1">
-                <span className="text-5xl font-bold">$15</span>
-                <span className="text-gray-400">/year</span>
-              </div>
-              <p className="text-green-500 text-sm mt-2 font-semibold">
-                Save 37% (Just $1.25 per month)
-              </p>
-            </div>
-
-            <ul className="space-y-3 mb-8">
-              <li className="flex items-center gap-2">
-                <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
-                </svg>
-                <span>Everything in Monthly</span>
+            <h2 className="text-2xl font-bold text-white mb-4">Annual</h2>
+            <p className="text-4xl font-bold text-white mb-2">
+              $15<span className="text-lg text-gray-400">/year</span>
+            </p>
+            <p className="text-green-400 mb-6">
+              Save 37% (Just $1.25 per month!)
+            </p>
+            
+            <ul className="mb-8 space-y-3">
+              <li className="flex items-center text-gray-300">
+                <span className="text-green-500 mr-2">✓</span>
+                Everything in Monthly
               </li>
-              <li className="flex items-center gap-2">
-                <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
-                </svg>
-                <span>Save 37% compared to monthly</span>
+              <li className="flex items-center text-gray-300">
+                <span className="text-green-500 mr-2">✓</span>
+                Save 37% compared to monthly
               </li>
-              <li className="flex items-center gap-2">
-                <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
-                </svg>
-                <span>Priority Support</span>
+              <li className="flex items-center text-gray-300">
+                <span className="text-green-500 mr-2">✓</span>
+                Priority Support
               </li>
             </ul>
-
+            
             <button
-              onClick={() => handleSubscribe("annual")}
-              disabled={loadingPlan !== null}
-              className="w-full py-3 bg-green-600 hover:bg-green-700 disabled:bg-gray-800 text-white rounded-lg font-semibold transition-all disabled:opacity-50"
+              onClick={() => handleCheckout('annual')}
+              disabled={loading !== null}
+              className="w-full py-3 bg-green-500 hover:bg-green-600 disabled:bg-gray-600 text-white rounded-lg font-semibold transition-colors"
             >
-              {loadingPlan === "annual" ? "Loading..." : "Go Annual"}
+              {loading === 'annual' ? 'Loading...' : 'Go Annual'}
             </button>
           </div>
         </div>
 
-        {/* Login reminder */}
-        <p className="text-center text-gray-400 text-sm mt-8">
+        <p className="text-center text-gray-500 mt-8 text-sm">
           You must be logged in to subscribe. 
-          <a href="/login" className="text-green-500 hover:text-green-400 ml-1">
+          <button 
+            onClick={() => router.push('/login')} 
+            className="text-blue-400 ml-1 hover:underline"
+          >
             Log in here
-          </a>
+          </button>
         </p>
       </div>
     </div>
