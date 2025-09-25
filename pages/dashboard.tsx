@@ -83,14 +83,13 @@ export default function Dashboard() {
   
   // Favorites State - Now with real implementation
   const [favoriteLists, setFavoriteLists] = useState<FavoriteList[]>([]);
-  const [newListName, setNewListName] = useState('');
+ 
   const [selectedListId, setSelectedListId] = useState<string | null>(null);
   const [expandedLists, setExpandedLists] = useState<Set<string>>(new Set());
   const [editingListId, setEditingListId] = useState<string | null>(null);
   const [editingListName, setEditingListName] = useState('');
   const [loadingLists, setLoadingLists] = useState(false);
-  const [creatingList, setCreatingList] = useState(false);
-  const [showCreateList, setShowCreateList] = useState(false);
+
   
   // Group Members State (Placeholder for Phase 3)
   const [groupMembers, setGroupMembers] = useState<GroupMember[]>([]);
@@ -791,45 +790,11 @@ const createFavoriteList = async () => {
                       <Heart className="w-5 h-5 text-green-400" />
                       My Favorite Lists
                     </h2>
-                    <button
-                      onClick={() => setShowCreateList(!showCreateList)}
-                      className="px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-all flex items-center gap-2"
-                    >
-                      <Plus className="w-4 h-4" />
-                      New List
-                    </button>
+
                   </div>
 
-                  {/* Create New List Form */}
-                  {showCreateList && (
-                    <div className="bg-gray-700 rounded-lg p-4">
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          value={newListName}
-                          onChange={(e) => setNewListName(e.target.value)}
-                          placeholder="Enter list name..."
-                          className="flex-1 px-4 py-2 bg-gray-600 border border-gray-500 rounded-lg text-white focus:outline-none focus:border-green-500"
-                        />
-                        <button
-                          onClick={createFavoriteList}
-                          disabled={!newListName.trim() || creatingList}
-                          className="px-4 py-2 bg-green-500 hover:bg-green-600 disabled:bg-gray-600 text-white rounded-lg transition-all"
-                        >
-                          {creatingList ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Create'}
-                        </button>
-                        <button
-                          onClick={() => {
-                            setShowCreateList(false);
-                            setNewListName('');
-                          }}
-                          className="px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded-lg transition-all"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    </div>
-                  )}
+            
+                  
 
                   {/* Lists */}
                   {loadingLists ? (
