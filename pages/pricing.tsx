@@ -30,17 +30,21 @@ export default function Pricing() {
     try {
       const idToken = await getIdToken();
       
+      // Get the actual userId from the token since user object doesn't have uid
+      const tokenPayload = JSON.parse(Buffer.from(idToken.split('.')[1], 'base64').toString());
+      const userId = tokenPayload.sub;
+      const userEmail = tokenPayload.email;
+      
       let endpoint, payload;
       
       if (plan === 'team') {
         endpoint = '/create-team-checkout';
         payload = {
           seatCount: seatCount,
-          userId: user.uid,
-          email: user.email
+          userId: userId,
+          email: userEmail
         };
       } else {
-        // THIS IS THE FIX - changed from /create-checkout to /create-checkout-session
         endpoint = '/create-checkout-session'; 
         const priceId = plan === 'monthly' 
           ? 'price_1Ps6gTGovzMa8KUCXQWShPwI'
@@ -48,8 +52,8 @@ export default function Pricing() {
         
         payload = {
           priceId,
-          userId: user.uid,
-          email: user.email
+          userId: userId,
+          email: userEmail
         };
       }
 
@@ -82,7 +86,7 @@ export default function Pricing() {
       } else {
         throw new Error('No checkout URL or session ID received');
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Checkout error:', err);
       setError(err.message || 'Failed to start checkout. Please try again.');
     } finally {
