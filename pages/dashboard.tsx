@@ -1,4 +1,4 @@
-// pages/dashboard.tsx - Fixed version
+// pages/dashboard.tsx - Complete updated version with favorites lists
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/router';
@@ -20,7 +20,11 @@ import {
   UserPlus,
   List,
   Trash2,
-  Edit2
+  Edit2,
+  Plus,
+  Music,
+  FolderOpen,
+  ChevronDown
 } from 'lucide-react';
 import { fetchAuthSession, updateUserAttribute, signOut } from 'aws-amplify/auth';
 
@@ -43,11 +47,20 @@ interface GroupMember {
   status: 'active' | 'pending';
 }
 
+interface FavoriteActivity {
+  activityId: string;
+  title: string;
+  artist: string;
+  s3Prefix: string;
+  addedAt: string;
+}
+
 interface FavoriteList {
-  id: string;
+  listId: string;
   name: string;
-  activities: string[];
+  activities: FavoriteActivity[];
   createdAt: string;
+  updatedAt: string;
 }
 
 export default function Dashboard() {
@@ -68,9 +81,16 @@ export default function Dashboard() {
   const [subscription, setSubscription] = useState<SubscriptionData | null>(null);
   const [isLoadingPortal, setIsLoadingPortal] = useState(false);
   
-  // Favorites State (Placeholder for Phase 2)
+  // Favorites State - Now with real implementation
   const [favoriteLists, setFavoriteLists] = useState<FavoriteList[]>([]);
   const [newListName, setNewListName] = useState('');
+  const [selectedListId, setSelectedListId] = useState<string | null>(null);
+  const [expandedLists, setExpandedLists] = useState<Set<string>>(new Set());
+  const [editingListId, setEditingListId] = useState<string | null>(null);
+  const [editingListName, setEditingListName] = useState('');
+  const [loadingLists, setLoadingLists] = useState(false);
+  const [creatingList, setCreatingList] = useState(false);
+  const [showCreateList, setShowCreateList] = useState(false);
   
   // Group Members State (Placeholder for Phase 3)
   const [groupMembers, setGroupMembers] = useState<GroupMember[]>([]);
@@ -108,7 +128,9 @@ export default function Dashboard() {
       // Load subscription data
       await loadSubscription();
       
-      // TODO: Load favorites (Phase 2)
+      // Load favorites lists
+      await loadFavoriteLists();
+      
       // TODO: Load group members if group owner (Phase 3)
       
     } catch (error) {
@@ -136,13 +158,12 @@ export default function Dashboard() {
         const data = await response.json();
         console.log('Subscription data from API:', data);
         
-        // Use the actual fields from the database
         setSubscription({
           status: data.status || 'active',
           plan: data.subscriptionType || 'individual',
           currentPeriodEnd: data.currentPeriodEnd || Date.now(),
-          amount: data.amount || 200, // Default to monthly if not set
-          interval: data.interval || 'month', // Default to month if not set
+          amount: data.amount || 200,
+          interval: data.interval || 'month',
           intervalCount: data.intervalCount || 1,
           stripePriceId: data.stripePriceId
         });
@@ -150,6 +171,167 @@ export default function Dashboard() {
     } catch (error) {
       console.error('Error loading subscription:', error);
     }
+  };
+
+  // Load favorite lists from API
+  const loadFavoriteLists = async () => {
+    setLoadingLists(true);
+    try {
+      const idToken = await getIdToken();
+      if (!idToken) return;
+      
+      const response = await fetch(`${API_BASE}/favorite-lists`, {
+        headers: {
+          'Authorization': `Bearer ${idToken}`
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setFavoriteLists(data.lists || []);
+      }
+    } catch (error) {
+      console.error('Error loading favorite lists:', error);
+    } finally {
+      setLoadingLists(false);
+    }
+  };
+
+  // Create a new favorite list
+  const createFavoriteList = async () => {
+    if (!newListName.trim()) return;
+    
+    setCreatingList(true);
+    try {
+      const idToken = await getIdToken();
+      if (!idToken) {
+        setMessage({ type: 'error', text: 'Please log in again' });
+        return;
+      }
+      
+      const response = await fetch(`${API_BASE}/favorite-lists`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${idToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          name: newListName.trim()
+        })
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setMessage({ type: 'success', text: 'List created successfully!' });
+        setNewListName('');
+        setShowCreateList(false);
+        await loadFavoriteLists();
+      } else {
+        setMessage({ type: 'error', text: 'Failed to create list' });
+      }
+    } catch (error) {
+      console.error('Error creating list:', error);
+      setMessage({ type: 'error', text: 'Failed to create list' });
+    } finally {
+      setCreatingList(false);
+    }
+  };
+
+  // Update list name
+  const updateListName = async (listId: string) => {
+    if (!editingListName.trim()) return;
+    
+    try {
+      const idToken = await getIdToken();
+      if (!idToken) return;
+      
+      const response = await fetch(`${API_BASE}/favorite-lists/${listId}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${idToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          name: editingListName.trim()
+        })
+      });
+      
+      if (response.ok) {
+        setMessage({ type: 'success', text: 'List renamed successfully!' });
+        setEditingListId(null);
+        setEditingListName('');
+        await loadFavoriteLists();
+      }
+    } catch (error) {
+      console.error('Error updating list:', error);
+      setMessage({ type: 'error', text: 'Failed to rename list' });
+    }
+  };
+
+  // Delete a list
+  const deleteList = async (listId: string) => {
+    if (!confirm('Are you sure you want to delete this list and all its activities?')) return;
+    
+    try {
+      const idToken = await getIdToken();
+      if (!idToken) return;
+      
+      const response = await fetch(`${API_BASE}/favorite-lists/${listId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${idToken}`
+        }
+      });
+      
+      if (response.ok) {
+        setMessage({ type: 'success', text: 'List deleted successfully!' });
+        await loadFavoriteLists();
+      }
+    } catch (error) {
+      console.error('Error deleting list:', error);
+      setMessage({ type: 'error', text: 'Failed to delete list' });
+    }
+  };
+
+  // Remove activity from list
+  const removeActivityFromList = async (listId: string, activityId: string) => {
+    try {
+      const idToken = await getIdToken();
+      if (!idToken) return;
+      
+      const response = await fetch(`${API_BASE}/favorite-lists/${listId}/activities/${activityId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${idToken}`
+        }
+      });
+      
+      if (response.ok) {
+        setMessage({ type: 'success', text: 'Activity removed from list' });
+        await loadFavoriteLists();
+      }
+    } catch (error) {
+      console.error('Error removing activity:', error);
+      setMessage({ type: 'error', text: 'Failed to remove activity' });
+    }
+  };
+
+  // Toggle list expansion
+  const toggleListExpansion = (listId: string) => {
+    setExpandedLists(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(listId)) {
+        newSet.delete(listId);
+      } else {
+        newSet.add(listId);
+      }
+      return newSet;
+    });
+  };
+
+  // Navigate to activity
+  const goToActivity = (s3Prefix: string) => {
+    router.push(`/activities?activity=${encodeURIComponent(s3Prefix)}`);
   };
 
   const handleEmailUpdate = async () => {
@@ -214,8 +396,6 @@ export default function Dashboard() {
         return;
       }
       
-      console.log('Calling portal endpoint...');
-      
       const response = await fetch(`${API_BASE}/create-portal-session`, {
         method: 'POST',
         headers: {
@@ -225,10 +405,7 @@ export default function Dashboard() {
         body: JSON.stringify({})
       });
       
-      console.log('Portal response status:', response.status);
-      
       const data = await response.json();
-      console.log('Portal response data:', data);
       
       if (response.ok && data.url) {
         window.location.href = data.url;
@@ -258,14 +435,12 @@ export default function Dashboard() {
   const getPlanDisplayName = () => {
     if (!subscription) return '';
     
-    // Determine plan name based on interval
     if (subscription.interval === 'year') {
       return 'Annual Subscription';
     } else if (subscription.interval === 'month') {
       return 'Monthly Subscription';
     }
     
-    // Fallback to price-based detection if interval not set
     if (subscription.amount === 1500) return 'Annual Subscription';
     if (subscription.amount === 200) return 'Monthly Subscription';
     
@@ -283,17 +458,12 @@ export default function Dashboard() {
       return `${price} / month`;
     }
     
-    // Fallback
     return subscription.amount === 1500 ? `${price} / year` : `${price} / month`;
   };
 
-  // Placeholder functions for future features
+  // Placeholder function for group members
   const addGroupMember = () => {
     setMessage({ type: 'info', text: 'Group membership feature coming soon!' });
-  };
-
-  const createFavoriteList = () => {
-    setMessage({ type: 'info', text: 'Favorites feature coming soon!' });
   };
 
   if (loading) {
@@ -367,6 +537,11 @@ export default function Dashboard() {
                 >
                   <Heart className="w-5 h-5" />
                   Favorites
+                  {favoriteLists.length > 0 && (
+                    <span className="ml-auto bg-green-500/30 text-green-400 text-xs px-2 py-0.5 rounded-full">
+                      {favoriteLists.reduce((acc, list) => acc + list.activities.length, 0)}
+                    </span>
+                  )}
                 </button>
                 
                 {subscription?.plan === 'group' && (
@@ -397,37 +572,35 @@ export default function Dashboard() {
                     Account Settings
                   </h2>
 
-                  // In dashboard.tsx, ensure this is in the Account Settings tab:
-
-{/* Email Section - Make sure this replaces your current email section */}
-<div>
-  <label className="block text-sm font-medium text-gray-300 mb-2">
-    Email Address
-  </label>
-  <div className="flex gap-2">
-    <input
-      type="email"
-      value={newEmail}
-      onChange={(e) => setNewEmail(e.target.value)}
-      placeholder={email || "your@email.com"}
-      className="flex-1 px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-green-500"
-    />
-    <button
-      onClick={handleEmailUpdate}
-      disabled={!newEmail || newEmail === email || saving}
-      className="px-4 py-2 bg-green-500 hover:bg-green-600 disabled:bg-gray-700 text-white rounded-lg transition-all flex items-center gap-2"
-    >
-      {saving ? (
-        <Loader2 className="w-4 h-4 animate-spin" />
-      ) : (
-        <Check className="w-4 h-4" />
-      )}
-    </button>
-  </div>
-  {email && newEmail && newEmail !== email && (
-    <p className="text-xs text-green-400 mt-2">Press check to update to: {newEmail}</p>
-  )}
-</div>
+                  {/* Email Section */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                      Email Address
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type="email"
+                        value={newEmail}
+                        onChange={(e) => setNewEmail(e.target.value)}
+                        placeholder={email || "your@email.com"}
+                        className="flex-1 px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-green-500"
+                      />
+                      <button
+                        onClick={handleEmailUpdate}
+                        disabled={!newEmail || newEmail === email || saving}
+                        className="px-4 py-2 bg-green-500 hover:bg-green-600 disabled:bg-gray-700 text-white rounded-lg transition-all flex items-center gap-2"
+                      >
+                        {saving ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Check className="w-4 h-4" />
+                        )}
+                      </button>
+                    </div>
+                    {email && newEmail && newEmail !== email && (
+                      <p className="text-xs text-green-400 mt-2">Press check to update to: {newEmail}</p>
+                    )}
+                  </div>
 
                   {/* Password Section */}
                   <div className="border-t border-gray-700 pt-6">
@@ -557,30 +730,174 @@ export default function Dashboard() {
                 </div>
               )}
 
-              {/* Favorites Tab (Placeholder) */}
+              {/* Favorites Tab - NOW WITH REAL IMPLEMENTATION */}
               {activeTab === 'favorites' && (
                 <div className="space-y-6">
-                  <h2 className="text-xl font-semibold text-white flex items-center gap-2">
-                    <Heart className="w-5 h-5 text-green-400" />
-                    My Favorites
-                  </h2>
-
-                  <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4">
-                    <p className="text-yellow-400 text-sm">
-                      The favorites feature is coming soon! You'll be able to create custom lists and save your favorite activities here.
-                    </p>
-                  </div>
-
-                  <div className="text-center py-12 text-gray-400">
-                    <Heart className="w-16 h-16 mx-auto mb-4 text-gray-600" />
-                    <p className="mb-4">No favorite lists yet</p>
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-xl font-semibold text-white flex items-center gap-2">
+                      <Heart className="w-5 h-5 text-green-400" />
+                      My Favorite Lists
+                    </h2>
                     <button
-                      onClick={createFavoriteList}
-                      className="px-6 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-all"
+                      onClick={() => setShowCreateList(!showCreateList)}
+                      className="px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-all flex items-center gap-2"
                     >
-                      Feature Coming Soon
+                      <Plus className="w-4 h-4" />
+                      New List
                     </button>
                   </div>
+
+                  {/* Create New List Form */}
+                  {showCreateList && (
+                    <div className="bg-gray-700 rounded-lg p-4">
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={newListName}
+                          onChange={(e) => setNewListName(e.target.value)}
+                          placeholder="Enter list name..."
+                          className="flex-1 px-4 py-2 bg-gray-600 border border-gray-500 rounded-lg text-white focus:outline-none focus:border-green-500"
+                        />
+                        <button
+                          onClick={createFavoriteList}
+                          disabled={!newListName.trim() || creatingList}
+                          className="px-4 py-2 bg-green-500 hover:bg-green-600 disabled:bg-gray-600 text-white rounded-lg transition-all"
+                        >
+                          {creatingList ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Create'}
+                        </button>
+                        <button
+                          onClick={() => {
+                            setShowCreateList(false);
+                            setNewListName('');
+                          }}
+                          className="px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded-lg transition-all"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Lists */}
+                  {loadingLists ? (
+                    <div className="text-center py-12">
+                      <Loader2 className="w-8 h-8 text-green-500 animate-spin mx-auto" />
+                      <p className="text-gray-400 mt-2">Loading your lists...</p>
+                    </div>
+                  ) : favoriteLists.length === 0 ? (
+                    <div className="text-center py-12 text-gray-400">
+                      <FolderOpen className="w-16 h-16 mx-auto mb-4 text-gray-600" />
+                      <p className="mb-4">No favorite lists yet</p>
+                      <p className="text-sm">Create a list to organize your favorite activities!</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {favoriteLists.map((list) => (
+                        <div key={list.listId} className="bg-gray-700 rounded-lg overflow-hidden">
+                          {/* List Header */}
+                          <div className="p-4 flex items-center justify-between">
+                            <div className="flex items-center gap-3 flex-1">
+                              <button
+                                onClick={() => toggleListExpansion(list.listId)}
+                                className="text-gray-400 hover:text-white transition-colors"
+                              >
+                                <ChevronDown 
+                                  className={`w-5 h-5 transition-transform ${
+                                    expandedLists.has(list.listId) ? 'rotate-180' : ''
+                                  }`} 
+                                />
+                              </button>
+                              
+                              {editingListId === list.listId ? (
+                                <div className="flex gap-2 flex-1">
+                                  <input
+                                    type="text"
+                                    value={editingListName}
+                                    onChange={(e) => setEditingListName(e.target.value)}
+                                    className="px-2 py-1 bg-gray-600 border border-gray-500 rounded text-white focus:outline-none focus:border-green-500"
+                                  />
+                                  <button
+                                    onClick={() => updateListName(list.listId)}
+                                    className="px-2 py-1 bg-green-500 hover:bg-green-600 text-white rounded"
+                                  >
+                                    <Check className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      setEditingListId(null);
+                                      setEditingListName('');
+                                    }}
+                                    className="px-2 py-1 bg-gray-600 hover:bg-gray-500 text-white rounded"
+                                  >
+                                    <X className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              ) : (
+                                <>
+                                  <h3 className="font-semibold text-white">{list.name}</h3>
+                                  <span className="text-sm text-gray-400">
+                                    ({list.activities.length} {list.activities.length === 1 ? 'activity' : 'activities'})
+                                  </span>
+                                </>
+                              )}
+                            </div>
+                            
+                            {editingListId !== list.listId && (
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={() => {
+                                    setEditingListId(list.listId);
+                                    setEditingListName(list.name);
+                                  }}
+                                  className="p-1.5 text-gray-400 hover:text-white transition-colors"
+                                >
+                                  <Edit2 className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={() => deleteList(list.listId)}
+                                  className="p-1.5 text-gray-400 hover:text-red-400 transition-colors"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                          
+                          {/* List Activities */}
+                          {expandedLists.has(list.listId) && (
+                            <div className="border-t border-gray-600">
+                              {list.activities.length === 0 ? (
+                                <div className="p-4 text-center text-gray-400">
+                                  <Music className="w-8 h-8 mx-auto mb-2 text-gray-600" />
+                                  <p className="text-sm">No activities in this list yet</p>
+                                </div>
+                              ) : (
+                                <div className="divide-y divide-gray-600">
+                                  {list.activities.map((activity) => (
+                                    <div key={activity.activityId} className="p-3 flex items-center justify-between hover:bg-gray-600/50">
+                                      <div 
+                                        className="flex-1 cursor-pointer"
+                                        onClick={() => goToActivity(activity.s3Prefix)}
+                                      >
+                                        <p className="text-white font-medium">{activity.title}</p>
+                                        <p className="text-sm text-gray-400">{activity.artist}</p>
+                                      </div>
+                                      <button
+                                        onClick={() => removeActivityFromList(list.listId, activity.activityId)}
+                                        className="p-1.5 text-gray-400 hover:text-red-400 transition-colors"
+                                      >
+                                        <X className="w-4 h-4" />
+                                      </button>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 
