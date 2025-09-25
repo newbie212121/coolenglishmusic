@@ -37,8 +37,8 @@ export default function Pricing() {
       
       // Use your EXISTING create-checkout-session endpoint
       const priceId = plan === 'annual' 
-        ? 'price_1Ps6hbGovzMa8KUC5qTGppei'  // Your annual price ID
-        : 'price_1Ps6gTGovzMa8KUCXQWShPwI'; // Your monthly price ID
+        ? 'price_1S6I5FEWbhWs9Y6oGs4CQEc2'  // Your annual price ID
+        : 'price_1S6I4wEWbhWs9Y6oRzBGIh8e'; // Your monthly price ID
       
       const response = await fetch(`${API_BASE}/create-checkout-session`, {
         method: 'POST',
