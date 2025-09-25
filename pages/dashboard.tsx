@@ -735,7 +735,6 @@ export default function Dashboard() {
                           </p>
                         </div>
                       </div>
-</div>
 
                       {/* ADD TEST BUTTON HERE */}
                       <div className="mt-4">
