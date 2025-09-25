@@ -329,9 +329,48 @@ export default function Dashboard() {
     });
   };
 
-  // Navigate to activity
-  const goToActivity = (s3Prefix: string) => {
-    router.push(`/activities?activity=${encodeURIComponent(s3Prefix)}`);
+  // Launch activity directly (same as activities page)
+  const goToActivity = async (s3Prefix: string) => {
+    try {
+      let headers: any = {};
+      
+      try {
+        const session = await fetchAuthSession();
+        const idToken = session?.tokens?.idToken?.toString();
+        if (idToken) {
+          headers['Authorization'] = `Bearer ${idToken}`;
+        }
+      } catch (e) {
+        console.log("No auth session");
+        router.push('/login');
+        return;
+      }
+      
+      const response = await fetch(`/api/grant-access?prefix=${encodeURIComponent(s3Prefix)}`, {
+        headers
+      });
+      
+      if (!response.ok) {
+        console.error("Grant access failed");
+        router.push('/pricing');
+        return;
+      }
+      
+      const data = await response.json();
+      
+      if (data.success && data.activityUrl) {
+        window.open(data.activityUrl, '_blank');
+      } else if (data.error === 'authentication_required') {
+        router.push('/login');
+      } else if (data.error === 'subscription_required') {
+        router.push('/pricing');
+      } else {
+        router.push('/pricing');
+      }
+    } catch (error) {
+      console.error("Error starting activity:", error);
+      router.push('/pricing');
+    }
   };
 
   const handleEmailUpdate = async () => {
