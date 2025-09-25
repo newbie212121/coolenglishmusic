@@ -2,11 +2,11 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/router';
 import { Check, Users } from 'lucide-react';
-import { useAuth } from '@/context/AuthContext'; // ADD THIS
+import { useAuth } from '@/context/AuthContext';
 
 const PricingPage = () => {
   const router = useRouter();
-  const { getIdToken } = useAuth(); // ADD THIS
+  const { isAuthenticated, getIdToken } = useAuth();
   const [seatCount, setSeatCount] = useState(5);
   const [loading, setLoading] = useState(false);
   
@@ -14,9 +14,21 @@ const PricingPage = () => {
   const yearlyPrice = seatCount * 18;
   
   const createTeamCheckout = async () => {
+    // Check if user is logged in first
+    if (!isAuthenticated) {
+      router.push('/login?redirect=/pricing');
+      return;
+    }
+    
     setLoading(true);
     try {
       const token = await getIdToken();
+      if (!token) {
+        alert('Please log in to create a team subscription');
+        router.push('/login?redirect=/pricing');
+        return;
+      }
+      
       const response = await fetch('https://api.coolenglishmusic.com/create-team-checkout', {
         method: 'POST',
         headers: {
@@ -24,25 +36,43 @@ const PricingPage = () => {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          seatCount,
-          groupName: null // Let them set this later
+          seatCount: seatCount
         })
       });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        alert(error.error || 'Failed to create checkout session');
+        return;
+      }
       
       const data = await response.json();
       if (data.sessionUrl) {
         window.location.href = data.sessionUrl;
+      } else {
+        alert('Failed to get checkout URL');
       }
     } catch (error) {
-      console.error('Error:', error);
-      alert('Failed to create checkout session');
+      console.error('Error creating checkout:', error);
+      alert('Failed to create checkout session. Please try again.');
     } finally {
       setLoading(false);
     }
   };
   
+  const createIndividualCheckout = async () => {
+    // Similar logic for individual subscriptions
+    if (!isAuthenticated) {
+      router.push('/login?redirect=/pricing');
+      return;
+    }
+    
+    // Use your existing individual subscription flow
+    router.push('/subscribe');
+  };
+  
   return (
-    <div className="min-h-screen bg-gray-900 py-12">
+    <div className="min-h-screen bg-gradient-to-b from-gray-900 to-black py-12">
       <div className="max-w-6xl mx-auto px-4">
         <h1 className="text-4xl font-bold text-white text-center mb-8">
           Simple, Transparent Pricing
@@ -79,8 +109,8 @@ const PricingPage = () => {
             </ul>
             
             <button
-              onClick={() => router.push('/subscribe')}
-              className="w-full py-3 bg-green-500 hover:bg-green-600 text-white rounded-lg font-semibold"
+              onClick={createIndividualCheckout}
+              className="w-full py-3 bg-green-500 hover:bg-green-600 text-white rounded-lg font-semibold transition-colors"
             >
               Get Started
             </button>
@@ -119,8 +149,13 @@ const PricingPage = () => {
                   min="2"
                   max="50"
                   value={seatCount}
-                  onChange={(e) => setSeatCount(parseInt(e.target.value))}
-                  className="w-16 px-2 py-1 bg-gray-600 text-white rounded"
+                  onChange={(e) => {
+                    const value = parseInt(e.target.value);
+                    if (value >= 2 && value <= 50) {
+                      setSeatCount(value);
+                    }
+                  }}
+                  className="w-16 px-2 py-1 bg-gray-600 text-white rounded text-center"
                 />
               </div>
               <p className="text-xs text-gray-400 mt-2">
@@ -150,9 +185,9 @@ const PricingPage = () => {
             <button
               onClick={createTeamCheckout}
               disabled={loading}
-              className="w-full py-3 bg-green-500 hover:bg-green-600 disabled:bg-gray-600 text-white rounded-lg font-semibold"
+              className="w-full py-3 bg-green-500 hover:bg-green-600 disabled:bg-gray-600 text-white rounded-lg font-semibold transition-colors"
             >
-              {loading ? 'Loading...' : `Start Team (${seatCount} seats)`}
+              {loading ? 'Creating checkout...' : `Start Team (${seatCount} seats)`}
             </button>
           </div>
         </div>
@@ -163,8 +198,8 @@ const PricingPage = () => {
             Need more than 50 seats? Have special requirements?
           </p>
           <button
-            onClick={() => window.location.href = 'mailto:support@coolenglishmusic.com'}
-            className="px-6 py-3 border border-gray-600 text-white rounded-lg hover:bg-gray-800"
+            onClick={() => window.location.href = 'mailto:support@coolenglishmusic.com?subject=Enterprise Pricing Inquiry'}
+            className="px-6 py-3 border border-gray-600 text-white rounded-lg hover:bg-gray-800 transition-colors"
           >
             Contact Us for Enterprise Pricing
           </button>
