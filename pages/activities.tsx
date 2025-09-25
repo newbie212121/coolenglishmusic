@@ -54,6 +54,8 @@ export default function ActivitiesPage() {
   const [showFilters, setShowFilters] = useState(false);
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [checkingAuth, setCheckingAuth] = useState(true);
+  const [favorites, setFavorites] = useState<Set<string>>(new Set());
+const [loadingFavorites, setLoadingFavorites] = useState<Set<string>>(new Set());
   
   // Categories with icons and colors
   const categories = [
@@ -91,9 +93,68 @@ export default function ActivitiesPage() {
 
   // Check user subscription status on mount
   useEffect(() => {
-    checkUserStatus();
-  }, []);
-
+  checkUserStatus();
+  fetchFavorites(); // Add this line
+}, []);
+const toggleFavorite = async (e: React.MouseEvent, activity: Activity) => {
+  e.stopPropagation();
+  
+  try {
+    const session = await fetchAuthSession();
+    const token = session?.tokens?.idToken?.toString();
+    
+    if (!token) {
+      alert('Please log in to save favorites');
+      router.push('/login');
+      return;
+    }
+    
+    // Show loading state
+    setLoadingFavorites(prev => new Set(prev).add(activity.id));
+    
+    const isFavorited = favorites.has(activity.id);
+    const method = isFavorited ? 'DELETE' : 'POST';
+    const url = isFavorited 
+      ? `${API_BASE}/favorites?activityId=${activity.id}`
+      : `${API_BASE}/favorites`;
+    
+    const response = await fetch(url, {
+      method,
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: method === 'POST' ? JSON.stringify({
+        activityId: activity.id,
+        title: activity.title,
+        artist: activity.artist,
+        s3Prefix: activity.s3Prefix
+      }) : undefined
+    });
+    
+    if (response.ok) {
+      // Update favorites state
+      setFavorites(prev => {
+        const newFavorites = new Set(prev);
+        if (isFavorited) {
+          newFavorites.delete(activity.id);
+        } else {
+          newFavorites.add(activity.id);
+        }
+        return newFavorites;
+      });
+    }
+  } catch (error) {
+    console.error("Error toggling favorite:", error);
+    alert('Failed to update favorites');
+  } finally {
+    setLoadingFavorites(prev => {
+      const newLoading = new Set(prev);
+      newLoading.delete(activity.id);
+      return newLoading;
+    });
+  }
+};
   const checkUserStatus = async () => {
     try {
       const session = await fetchAuthSession();
@@ -118,7 +179,28 @@ export default function ActivitiesPage() {
       setCheckingAuth(false);
     }
   };
-
+const fetchFavorites = async () => {
+  try {
+    const session = await fetchAuthSession();
+    const token = session?.tokens?.idToken?.toString();
+    
+    if (token) {
+      const response = await fetch(`${API_BASE}/favorites`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        const favoriteIds = new Set(data.favorites.map((f: any) => f.activityId));
+        setFavorites(favoriteIds);
+      }
+    }
+  } catch (error) {
+    console.error("Error fetching favorites:", error);
+  }
+};
   // Fetch activities on mount
   useEffect(() => {
     fetchActivities();
@@ -473,15 +555,21 @@ export default function ActivitiesPage() {
                 {/* Top Right Actions */}
                 <div className="absolute top-2 right-2 flex gap-2 z-20">
                   <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      alert("Favorites feature coming soon!");
-                    }}
-                    className="p-1.5 bg-black/50 backdrop-blur-sm rounded-full hover:bg-black/70 transition-all group"
-                    title="Add to favorites (Coming soon)"
-                  >
-                    <Heart className="w-4 h-4 text-white group-hover:text-red-500 transition-colors" />
-                  </button>
+  onClick={(e) => toggleFavorite(e, activity)}
+  disabled={loadingFavorites.has(activity.id)}
+  className="p-1.5 bg-black/50 backdrop-blur-sm rounded-full hover:bg-black/70 transition-all group"
+  title={favorites.has(activity.id) ? "Remove from favorites" : "Add to favorites"}
+>
+  <Heart 
+    className={`w-4 h-4 transition-colors ${
+      loadingFavorites.has(activity.id) 
+        ? 'animate-pulse text-gray-400' 
+        : favorites.has(activity.id) 
+          ? 'text-red-500 fill-current' 
+          : 'text-white group-hover:text-red-500'
+    }`} 
+  />
+</button>
                   
                   <button
   onClick={(e) => {
