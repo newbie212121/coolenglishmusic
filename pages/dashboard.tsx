@@ -126,7 +126,31 @@ export default function Dashboard() {
       
       // Load subscription data
       await loadSubscription();
+      // Add this function after loadSubscription (around line 119)
+  const testGroupAPI = async () => {
+    try {
+      const idToken = await getIdToken();
+      if (!idToken) {
+        alert('No token found - please log in');
+        return;
+      }
       
+      const response = await fetch('https://api.coolenglishmusic.com/groups', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${idToken}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      const data = await response.json();
+      console.log('Group API Response:', data);
+      alert('Group API Response: ' + JSON.stringify(data));
+    } catch (error) {
+      console.error('Error:', error);
+      alert('Error: ' + error.message);
+    }
+  };
       // Load favorites lists
       await loadFavoriteLists();
       
@@ -709,7 +733,19 @@ export default function Dashboard() {
                           </p>
                         </div>
                       </div>
+</div>
 
+                      {/* ADD TEST BUTTON HERE */}
+                      <div className="mt-4">
+                        <button 
+                          onClick={testGroupAPI}
+                          className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded"
+                        >
+                          Test Group API
+                        </button>
+                      </div>
+
+                      {/* Billing Management */}
                       {/* Billing Management */}
                       <div className="border-t border-gray-700 pt-6">
                         <h3 className="text-lg font-medium text-white mb-4">Billing Management</h3>
