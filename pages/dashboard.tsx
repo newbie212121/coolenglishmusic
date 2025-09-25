@@ -126,7 +126,8 @@ export default function Dashboard() {
       
       // Load subscription data
       await loadSubscription();
-      // Add this function after loadSubscription (around line 119)
+    
+// Add this function after loadSubscription (around line 119)
   const testGroupAPI = async () => {
     try {
       const idToken = await getIdToken();
@@ -146,11 +147,12 @@ export default function Dashboard() {
       const data = await response.json();
       console.log('Group API Response:', data);
       alert('Group API Response: ' + JSON.stringify(data));
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error:', error);
-      alert('Error: ' + error.message);
+      alert('Error: ' + (error?.message || 'Unknown error'));
     }
   };
+  
       // Load favorites lists
       await loadFavoriteLists();
       
