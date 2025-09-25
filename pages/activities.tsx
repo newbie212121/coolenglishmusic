@@ -160,7 +160,7 @@ const fetchFavorites = async () => {
         
         // Create a set of all favorited activity IDs across all lists
         const favoriteIds = new Set<string>();
-        const allLists = [];
+        const allLists: FavoriteList[] = []; // Add the type here
         
         // Process each list
         (data.lists || []).forEach((list: any) => {
