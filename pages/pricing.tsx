@@ -26,7 +26,7 @@ const PricingPage = () => {
       }
       
       // Use your existing checkout creation endpoint
-      const response = await fetch('https://api.coolenglishmusic.com/create-checkout', {
+      const response = await fetch('https://api.coolenglishmusic.com/create-checkout-session', {
         method: 'POST',
         headers: {
           'Authorization': token, // Note: just token, not Bearer
