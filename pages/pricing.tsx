@@ -17,7 +17,7 @@ export default function Pricing() {
     setTeamPrice(seatCount * 1.75);
   }, [seatCount]);
 
-  const handleCheckout = async (plan) => {
+  const handleCheckout = async (plan: string) => {
     if (!user) {
       window.location.href = '/login?redirect=/pricing';
       return;
