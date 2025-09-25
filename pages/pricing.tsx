@@ -2,9 +2,11 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/router';
 import { Check, Users } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext'; // ADD THIS
 
 const PricingPage = () => {
   const router = useRouter();
+  const { getIdToken } = useAuth(); // ADD THIS
   const [seatCount, setSeatCount] = useState(5);
   const [loading, setLoading] = useState(false);
   
