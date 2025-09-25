@@ -1,4 +1,4 @@
-// pages/activities.tsx - Updated with list-based favorites
+// pages/activities.tsx - Complete file with favorites (no subscription check)
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/router";
 import { fetchAuthSession } from "aws-amplify/auth";
@@ -49,7 +49,7 @@ interface Activity {
 interface FavoriteList {
   listId: string;
   name: string;
-  activities: string[]; // Array of activity IDs
+  activities: any[]; // Array of activity objects
 }
 
 export default function ActivitiesPage() {
@@ -61,9 +61,9 @@ export default function ActivitiesPage() {
   const [selectedGenre, setSelectedGenre] = useState("all");
   const [showOnlyFree, setShowOnlyFree] = useState(false);
   const [sortBy, setSortBy] = useState("title");
-  const [showFilters, setShowFilters] = useState(false);
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [checkingAuth, setCheckingAuth] = useState(true);
+  const [favorites, setFavorites] = useState<Set<string>>(new Set());
   
   // Favorites lists state
   const [favoriteLists, setFavoriteLists] = useState<FavoriteList[]>([]);
@@ -101,7 +101,7 @@ export default function ActivitiesPage() {
 
   // Check if activity is in any list
   const isActivityFavorited = (activityId: string) => {
-    return favoriteLists.some(list => list.activities.includes(activityId));
+    return favorites.has(activityId);
   };
 
   // Check for URL parameters on mount (for filtering from home page)
@@ -115,7 +115,7 @@ export default function ActivitiesPage() {
   // Check user subscription status and load lists on mount
   useEffect(() => {
     checkUserStatus();
-    loadFavoriteLists();
+    fetchFavorites();
   }, []);
 
   const checkUserStatus = async () => {
@@ -143,7 +143,7 @@ export default function ActivitiesPage() {
     }
   };
 
-  const loadFavoriteLists = async () => {
+  const fetchFavorites = async () => {
     try {
       const session = await fetchAuthSession();
       const token = session?.tokens?.idToken?.toString();
@@ -157,15 +157,23 @@ export default function ActivitiesPage() {
         
         if (response.ok) {
           const data = await response.json();
+          // Create a set of all favorited activity IDs across all lists
+          const favoriteIds = new Set<string>();
+          data.lists?.forEach((list: any) => {
+            list.activities?.forEach((activity: any) => {
+              favoriteIds.add(activity.activityId);
+            });
+          });
+          setFavorites(favoriteIds);
           setFavoriteLists(data.lists || []);
         }
       }
     } catch (error) {
-      console.error("Error fetching favorite lists:", error);
+      console.error("Error fetching favorites:", error);
     }
   };
 
-  // Open modal to select/create list
+  // Open modal to select/create list - NO SUBSCRIPTION CHECK
   const openFavoriteModal = async (e: React.MouseEvent, activity: Activity) => {
     e.stopPropagation();
     
@@ -180,12 +188,7 @@ export default function ActivitiesPage() {
         return;
       }
       
-      // Check if user is subscribed
-      if (!isSubscribed) {
-        alert('A premium subscription is required to save favorites. Upgrade now to organize your favorite activities!');
-        router.push('/pricing');
-        return;
-      }
+      // NO SUBSCRIPTION CHECK - favorites available to all logged-in users
       
       setSelectedActivity(activity);
       setShowListModal(true);
@@ -224,7 +227,7 @@ export default function ActivitiesPage() {
       });
       
       if (response.ok) {
-        await loadFavoriteLists();
+        await fetchFavorites(); // Reload favorites
         setShowListModal(false);
         setSelectedActivity(null);
       } else {
@@ -297,13 +300,17 @@ export default function ActivitiesPage() {
       const session = await fetchAuthSession();
       const token = session?.tokens?.idToken?.toString();
       
-      if (!token) return;
+      if (!token) {
+        alert('Please log in to manage favorites');
+        router.push('/login');
+        return;
+      }
       
       setLoadingFavorites(prev => new Set(prev).add(activity.id));
       
       // Find which lists contain this activity
       const listsWithActivity = favoriteLists.filter(list => 
-        list.activities.includes(activity.id)
+        list.activities?.some((a: any) => a.activityId === activity.id)
       );
       
       // Remove from all lists
@@ -316,7 +323,7 @@ export default function ActivitiesPage() {
         });
       }
       
-      await loadFavoriteLists();
+      await fetchFavorites(); // Reload favorites
     } catch (error) {
       console.error("Error removing from favorites:", error);
     } finally {
@@ -857,30 +864,33 @@ export default function ActivitiesPage() {
                 ) : (
                   <div className="space-y-3">
                     <div className="max-h-64 overflow-y-auto space-y-2">
-                      {favoriteLists.map((list) => (
-                        <button
-                          key={list.listId}
-                          onClick={() => addToList(list.listId)}
-                          disabled={list.activities.includes(selectedActivity.id)}
-                          className={`w-full p-3 rounded-lg text-left transition-all ${
-                            list.activities.includes(selectedActivity.id)
-                              ? 'bg-gray-700/50 text-gray-500 cursor-not-allowed'
-                              : 'bg-gray-700 hover:bg-gray-600 text-white'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="font-medium">{list.name}</p>
-                              <p className="text-sm text-gray-400">
-                                {list.activities.length} {list.activities.length === 1 ? 'activity' : 'activities'}
-                              </p>
+                      {favoriteLists.map((list) => {
+                        const isInList = list.activities?.some((a: any) => a.activityId === selectedActivity.id);
+                        return (
+                          <button
+                            key={list.listId}
+                            onClick={() => addToList(list.listId)}
+                            disabled={isInList}
+                            className={`w-full p-3 rounded-lg text-left transition-all ${
+                              isInList
+                                ? 'bg-gray-700/50 text-gray-500 cursor-not-allowed'
+                                : 'bg-gray-700 hover:bg-gray-600 text-white'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <p className="font-medium">{list.name}</p>
+                                <p className="text-sm text-gray-400">
+                                  {list.activities?.length || 0} {list.activities?.length === 1 ? 'activity' : 'activities'}
+                                </p>
+                              </div>
+                              {isInList && (
+                                <Check className="w-5 h-5 text-green-400" />
+                              )}
                             </div>
-                            {list.activities.includes(selectedActivity.id) && (
-                              <Check className="w-5 h-5 text-green-400" />
-                            )}
-                          </div>
-                        </button>
-                      ))}
+                          </button>
+                        );
+                      })}
                     </div>
                     
                     <button
