@@ -1,4 +1,5 @@
 // pages/pricing.tsx - With Team UI Added (Not Connected Yet)
+import { fetchAuthSession } from 'aws-amplify/auth';
 import { useState } from "react";
 import { useRouter } from "next/router";
 import { getCurrentUser } from "aws-amplify/auth";
@@ -83,21 +84,43 @@ const handleTeamCheckout = async () => {
   setError("");
   
   try {
-    // Get user info
-    const user = await getCurrentUser();
-    const userId = user.userId;
-    const userEmail = user.signInDetails?.loginId || "";
+    // Check if user is logged in first
+    let userId: string;
+    let userEmail: string = "";
+    let idToken: string;
     
-    // Get auth token
-    const idToken = localStorage.getItem('idToken');
+    try {
+      // Get current user
+      const user = await getCurrentUser();
+      userId = user.userId;
+      userEmail = user.signInDetails?.loginId || "";
+      
+      // Get the auth token from AWS Amplify (NOT localStorage)
+      const session = await fetchAuthSession();
+      idToken = session.tokens?.idToken?.toString();
+      
+      if (!idToken) {
+        throw new Error("No authentication token found");
+      }
+      
+      console.log("Team checkout - User:", userEmail, "UserId:", userId);
+      
+    } catch (authError) {
+      console.log("User not authenticated, redirecting to login");
+      sessionStorage.setItem("pendingCheckout", "team");
+      sessionStorage.setItem("pendingSeats", String(teamSeats));
+      sessionStorage.setItem("postLoginRedirect", "/pricing");
+      router.push("/login");
+      return;
+    }
     
-    console.log('Calling team checkout...');
+    console.log('Calling team checkout with token...');
     
     const response = await fetch(`${API_BASE}/create-team-checkout`, {
       method: "POST",
       headers: { 
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${idToken}`
+        "Authorization": `Bearer ${idToken}` // Use the actual token from Amplify
       },
       body: JSON.stringify({ 
         seatCount: teamSeats,
@@ -105,17 +128,19 @@ const handleTeamCheckout = async () => {
       })
     });
 
-    // Log the response for debugging
     console.log('Response status:', response.status);
     
     const data = await response.json();
     console.log('Response data:', data);
     
+    if (!response.ok) {
+      throw new Error(data.error || data.message || "Failed to create checkout session");
+    }
+    
     // Check for the URL and redirect
     if (data.sessionUrl || data.url) {
       console.log('Redirecting to:', data.sessionUrl || data.url);
       window.location.href = data.sessionUrl || data.url;
-      // Don't set loading to null here - we're redirecting
       return;
     } else {
       throw new Error('No checkout URL in response');
