@@ -79,6 +79,8 @@ export default function PricingPage() {
     }
   };
 
+// Replace your handleTeamCheckout function with this TypeScript-safe version:
+
 const handleTeamCheckout = async () => {
   setLoadingPlan("team");
   setError("");
@@ -87,7 +89,7 @@ const handleTeamCheckout = async () => {
     // Check if user is logged in first
     let userId: string;
     let userEmail: string = "";
-    let idToken: string;
+    let idToken: string | undefined;
     
     try {
       // Get current user
@@ -114,13 +116,14 @@ const handleTeamCheckout = async () => {
       return;
     }
     
+    // TypeScript now knows idToken is defined here because we threw an error if it wasn't
     console.log('Calling team checkout with token...');
     
     const response = await fetch(`${API_BASE}/create-team-checkout`, {
       method: "POST",
       headers: { 
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${idToken}` // Use the actual token from Amplify
+        "Authorization": `Bearer ${idToken}` // TypeScript knows this is safe now
       },
       body: JSON.stringify({ 
         seatCount: teamSeats,
