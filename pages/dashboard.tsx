@@ -24,7 +24,7 @@ import {
   Plus,
   Music,
   FolderOpen,
-  ChevronDown
+  ChevronDown,
   Clock
 } from 'lucide-react';
 import { fetchAuthSession, updateUserAttribute, signOut } from 'aws-amplify/auth';
