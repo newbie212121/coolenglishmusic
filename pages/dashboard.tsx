@@ -141,7 +141,9 @@ export default function Dashboard() {
         try {
           const token = await getIdToken();
           if (token) {
-            const teamResponse = await fetch(`${API_BASE}/groups`, {
+            // Only check if subscription indicates team ownership
+if (subscription?.plan === 'team') {
+  const teamResponse = await fetch(`${API_BASE}/groups`, {
               headers: { 'Authorization': `Bearer ${token}` }
             });
             if (teamResponse.ok) {
