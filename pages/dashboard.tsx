@@ -111,34 +111,61 @@ export default function Dashboard() {
     loadUserData();
   }, [isAuthenticated, router]);
 
-  const loadUserData = async () => {
+const loadUserData = async () => {
+  try {
+    // Get user email from Cognito
     try {
-      // Get user email from Cognito
-      try {
-        const attributes = await fetchAuthSession();
-        const idToken = attributes.tokens?.idToken;
-        const payload = idToken?.payload;
-        setEmail(payload?.email as string || user?.username || '');
-      } catch (error) {
-        console.error('Could not fetch user attributes:', error);
-        setEmail(user?.username || '');
-      }
-      
-      // Load subscription data
-      await loadSubscription();
-    
-  
-      // Load favorites lists
-      await loadFavoriteLists();
-      
-      // TODO: Load group members if group owner (Phase 3)
-      
+      const attributes = await fetchAuthSession();
+      const idToken = attributes.tokens?.idToken;
+      const payload = idToken?.payload;
+      setEmail(payload?.email as string || user?.username || '');
     } catch (error) {
-      console.error('Error loading user data:', error);
-    } finally {
-      setLoading(false);
+      console.error('Could not fetch user attributes:', error);
+      setEmail(user?.username || '');
     }
-  };
+    
+    // Load subscription data
+    await loadSubscription();
+    
+    // ADD THIS: Check for team ownership
+    try {
+      const token = await getIdToken();
+      if (token) {
+        const teamResponse = await fetch(`${API_BASE}/groups`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        
+        if (teamResponse.ok) {
+          const teamData = await teamResponse.json();
+          console.log('Team data loaded:', teamData);
+          
+          if (teamData.group && teamData.group.isOwner) {
+            // Force subscription to show as team
+            setSubscription(prev => ({
+              ...prev,
+              plan: 'team',  // This enables the Team Members tab
+              subscriptionType: 'team',
+              amount: teamData.group.pricePerSeat || 175,
+              interval: teamData.group.interval || 'month'
+            }));
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error loading team data:', error);
+    }
+    
+    // Load favorites lists
+    await loadFavoriteLists();
+    
+  } catch (error) {
+    console.error('Error loading user data:', error);
+  } finally {
+    setLoading(false);
+  }
+};
 
   const loadSubscription = async () => {
     try {
