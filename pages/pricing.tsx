@@ -79,63 +79,59 @@ export default function PricingPage() {
   };
 
   const handleTeamCheckout = async () => {
-    setLoadingPlan("team");
-    setError("");
+  setLoadingPlan("team");
+  setError("");
+  
+  try {
+    let userId: string;
+    let userEmail: string = "";
     
     try {
-      // For now, just show coming soon message
-      // TODO: When backend is ready, uncomment the actual implementation below
-      alert(`Team checkout for ${teamSeats} seats (${isAnnual ? 'annual' : 'monthly'}) - Coming soon!`);
-      
-      /* READY TO CONNECT - Uncomment when backend is deployed and tested:
-      
-      let userId: string;
-      let userEmail: string = "";
-      
-      try {
-        const user = await getCurrentUser();
-        userId = user.userId;
-        userEmail = user.signInDetails?.loginId || "";
-      } catch {
-        sessionStorage.setItem("pendingPlan", "team");
-        sessionStorage.setItem("pendingSeats", teamSeats.toString());
-        sessionStorage.setItem("postLoginRedirect", "/pricing");
-        router.push("/login");
-        return;
-      }
-
-      const res = await fetch(`${API_BASE}/create-team-checkout`, {
-        method: "POST",
-        headers: { 
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${await getIdToken()}` // If you need auth token
-        },
-        body: JSON.stringify({ 
-          seatCount: teamSeats,
-          annual: isAnnual,
-          userId: userId,
-          email: userEmail
-        }),
-      });
-
-      const data = await res.json();
-      
-      if (!res.ok) {
-        throw new Error(data.error || "Failed to create team checkout");
-      }
-      
-      if (data.url) {
-        window.location.href = data.url;
-      }
-      */
-      
-    } catch (error: any) {
-      console.error("Team checkout error:", error);
-      setError(error.message || "Team checkout coming soon");
-    } finally {
-      setLoadingPlan(null);
+      const user = await getCurrentUser();
+      userId = user.userId;
+      userEmail = user.signInDetails?.loginId || "";
+    } catch {
+      router.push("/login");
+      return;
     }
-  };
+
+    // Get the auth token
+    const idToken = localStorage.getItem('idToken');
+    
+    const res = await fetch(`${API_BASE}/create-team-checkout`, {
+      method: "POST",
+      headers: { 
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${idToken}`
+      },
+      body: JSON.stringify({ 
+        seatCount: teamSeats,
+        annual: isAnnual
+      }),
+    });
+
+    const data = await res.json();
+    
+    if (!res.ok) {
+      throw new Error(data.error || "Failed to create team checkout");
+    }
+    
+    // THIS IS THE KEY PART - redirect to Stripe
+    if (data.sessionUrl) {
+      window.location.href = data.sessionUrl;
+    } else if (data.url) {
+      window.location.href = data.url;
+    } else {
+      throw new Error("No checkout URL received");
+    }
+    
+  } catch (error: any) {
+    console.error("Team checkout error:", error);
+    setError(error.message || "Failed to start team checkout");
+  } finally {
+    setLoadingPlan(null);
+  }
+};
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white">
