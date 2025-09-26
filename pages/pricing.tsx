@@ -78,27 +78,22 @@ export default function PricingPage() {
     }
   };
 
-  const handleTeamCheckout = async () => {
+const handleTeamCheckout = async () => {
   setLoadingPlan("team");
   setError("");
   
   try {
-    let userId: string;
-    let userEmail: string = "";
+    // Get user info
+    const user = await getCurrentUser();
+    const userId = user.userId;
+    const userEmail = user.signInDetails?.loginId || "";
     
-    try {
-      const user = await getCurrentUser();
-      userId = user.userId;
-      userEmail = user.signInDetails?.loginId || "";
-    } catch {
-      router.push("/login");
-      return;
-    }
-
-    // Get the auth token
+    // Get auth token
     const idToken = localStorage.getItem('idToken');
     
-    const res = await fetch(`${API_BASE}/create-team-checkout`, {
+    console.log('Calling team checkout...');
+    
+    const response = await fetch(`${API_BASE}/create-team-checkout`, {
       method: "POST",
       headers: { 
         "Content-Type": "application/json",
@@ -107,28 +102,28 @@ export default function PricingPage() {
       body: JSON.stringify({ 
         seatCount: teamSeats,
         annual: isAnnual
-      }),
+      })
     });
 
-    const data = await res.json();
+    // Log the response for debugging
+    console.log('Response status:', response.status);
     
-    if (!res.ok) {
-      throw new Error(data.error || "Failed to create team checkout");
-    }
+    const data = await response.json();
+    console.log('Response data:', data);
     
-    // THIS IS THE KEY PART - redirect to Stripe
-    if (data.sessionUrl) {
-      window.location.href = data.sessionUrl;
-    } else if (data.url) {
-      window.location.href = data.url;
+    // Check for the URL and redirect
+    if (data.sessionUrl || data.url) {
+      console.log('Redirecting to:', data.sessionUrl || data.url);
+      window.location.href = data.sessionUrl || data.url;
+      // Don't set loading to null here - we're redirecting
+      return;
     } else {
-      throw new Error("No checkout URL received");
+      throw new Error('No checkout URL in response');
     }
     
   } catch (error: any) {
     console.error("Team checkout error:", error);
     setError(error.message || "Failed to start team checkout");
-  } finally {
     setLoadingPlan(null);
   }
 };
