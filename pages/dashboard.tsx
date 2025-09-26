@@ -608,7 +608,7 @@ const loadUserData = async () => {
                   )}
                 </button>
                 
-                {subscription?.plan === 'group' && (
+                {subscription?.plan === 'team' && (
                   <button
                     onClick={() => setActiveTab('members')}
                     className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
@@ -943,7 +943,7 @@ const loadUserData = async () => {
               )}
 
               {/* Group Members Tab (Placeholder) */}
-              {activeTab === 'members' && subscription?.plan === 'group' && (
+              {activeTab === 'members' && subscription?.plan === 'team' && (
                 <div className="space-y-6">
                   <h2 className="text-xl font-semibold text-white flex items-center gap-2">
                     <Users className="w-5 h-5 text-green-400" />
