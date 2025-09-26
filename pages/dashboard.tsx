@@ -25,6 +25,7 @@ import {
   Music,
   FolderOpen,
   ChevronDown
+  Clock
 } from 'lucide-react';
 import { fetchAuthSession, updateUserAttribute, signOut } from 'aws-amplify/auth';
 
@@ -1225,4 +1226,11 @@ const loadUserData = async () => {
                     );
                   })()}
                 </div>
-              )}
+				</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+             
