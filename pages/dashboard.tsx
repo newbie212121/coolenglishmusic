@@ -1,4 +1,4 @@
-// pages/dashboard.tsx - Complete updated version with favorites lists
+// pages/dashboard.tsx - Fixed Group Members hooks + favorites lists
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/router';
@@ -27,7 +27,7 @@ import {
   ChevronDown,
   Clock
 } from 'lucide-react';
-import { fetchAuthSession, updateUserAttribute, signOut } from 'aws-amplify/auth';
+import { fetchAuthSession, updateUserAttribute } from 'aws-amplify/auth';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'https://api.coolenglishmusic.com';
 
@@ -42,10 +42,9 @@ interface SubscriptionData {
 }
 
 interface GroupMember {
-  email: string;
-  name: string;
-  joinedAt: string;
-  status: 'active' | 'pending';
+  memberEmail: string;
+  memberName?: string;
+  status?: 'invited' | 'active';
 }
 
 interface FavoriteActivity {
@@ -65,11 +64,11 @@ interface FavoriteList {
 }
 
 export default function Dashboard() {
-  const { isAuthenticated, isMember, user, getIdToken } = useAuth();
+  const { isAuthenticated, user, getIdToken } = useAuth();
   const router = useRouter();
   
   // Tab Management
-  const [activeTab, setActiveTab] = useState('account');
+  const [activeTab, setActiveTab] = useState<'account'|'subscription'|'favorites'|'members'>('account');
   
   // Account Settings State
   const [email, setEmail] = useState('');
@@ -82,20 +81,24 @@ export default function Dashboard() {
   const [subscription, setSubscription] = useState<SubscriptionData | null>(null);
   const [isLoadingPortal, setIsLoadingPortal] = useState(false);
   
-  // Favorites State - Now with real implementation
+  // Favorites State
   const [favoriteLists, setFavoriteLists] = useState<FavoriteList[]>([]);
- 
   const [selectedListId, setSelectedListId] = useState<string | null>(null);
   const [expandedLists, setExpandedLists] = useState<Set<string>>(new Set());
   const [editingListId, setEditingListId] = useState<string | null>(null);
   const [editingListName, setEditingListName] = useState('');
   const [loadingLists, setLoadingLists] = useState(false);
 
-  
-  // Group Members State (Placeholder for Phase 3)
-  const [groupMembers, setGroupMembers] = useState<GroupMember[]>([]);
+  // ---------- Group Members State (MOVED TO TOP LEVEL) ----------
+  const [groupData, setGroupData] = useState<any>(null);
+  const [members, setMembers] = useState<GroupMember[]>([]);
+  const [groupLoading, setGroupLoading] = useState(false);
+  const [addingMember, setAddingMember] = useState(false);
+  const [newMemberName, setNewMemberName] = useState('');
+  const [removingMember, setRemovingMember] = useState<string | null>(null);
   const [newMemberEmail, setNewMemberEmail] = useState('');
-  
+  // --------------------------------------------------------------
+
   // UI State
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -104,81 +107,72 @@ export default function Dashboard() {
     text: '' 
   });
 
+  // Initial auth + data load
   useEffect(() => {
     if (!isAuthenticated) {
       router.push('/login?redirect=/dashboard');
       return;
     }
     loadUserData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, router]);
 
-const loadUserData = async () => {
-  try {
-    // Get user email from Cognito
+  const loadUserData = async () => {
     try {
-      const attributes = await fetchAuthSession();
-      const idToken = attributes.tokens?.idToken;
-      const payload = idToken?.payload;
-      setEmail(payload?.email as string || user?.username || '');
-    } catch (error) {
-      console.error('Could not fetch user attributes:', error);
-      setEmail(user?.username || '');
-    }
-    
-    // Load subscription data
-    await loadSubscription();
-    
-    // ADD THIS: Check for team ownership
-    try {
-      const token = await getIdToken();
-      if (token) {
-        const teamResponse = await fetch(`${API_BASE}/groups`, {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
-        
-        if (teamResponse.ok) {
-          const teamData = await teamResponse.json();
-          console.log('Team data loaded:', teamData);
-          
-          if (teamData.group && teamData.group.isOwner) {
-            // Force subscription to show as team - TypeScript safe version
-            setSubscription(prev => {
-              if (!prev) {
-                // Create new subscription object if none exists
-                return {
-                  status: 'active',
-                  plan: 'team',
-                  currentPeriodEnd: teamData.group.currentPeriodEnd || Date.now(),
-                  amount: teamData.group.pricePerSeat || 175,
-                  interval: teamData.group.interval || 'month'
-                };
-              }
-              // Update existing subscription
-              return {
-                ...prev,
-                plan: 'team',  // This enables the Team Members tab
-                amount: teamData.group.pricePerSeat || prev.amount,
-                interval: teamData.group.interval || prev.interval
-              };
+      // Get user email from Cognito
+      try {
+        const attributes = await fetchAuthSession();
+        const idToken = attributes.tokens?.idToken;
+        const payload = idToken?.payload;
+        setEmail((payload?.email as string) || user?.username || '');
+      } catch (error) {
+        console.error('Could not fetch user attributes:', error);
+        setEmail(user?.username || '');
+      }
+      
+      // Load subscription data
+      await loadSubscription();
+
+      // If we already know they're a team owner, pre-load group data
+      if (subscription?.plan === 'team') {
+        await loadGroupData();
+      } else {
+        // Probe groups API to flip plan to 'team' for owners
+        try {
+          const token = await getIdToken();
+          if (token) {
+            const teamResponse = await fetch(`${API_BASE}/groups`, {
+              headers: { 'Authorization': `Bearer ${token}` }
             });
+            if (teamResponse.ok) {
+              const teamData = await teamResponse.json();
+              if (teamData.group && teamData.group.isOwner) {
+                setSubscription(prev => ({
+                  status: prev?.status ?? 'active',
+                  plan: 'team',
+                  currentPeriodEnd: teamData.group.currentPeriodEnd || prev?.currentPeriodEnd || Date.now(),
+                  amount: teamData.group.pricePerSeat || prev?.amount || 175,
+                  interval: teamData.group.interval || prev?.interval || 'month',
+                  intervalCount: prev?.intervalCount,
+                  stripePriceId: prev?.stripePriceId
+                }));
+                await loadGroupData();
+              }
+            }
           }
+        } catch (err) {
+          console.error('Error probing team data:', err);
         }
       }
+      
+      // Load favorites lists
+      await loadFavoriteLists();
     } catch (error) {
-      console.error('Error loading team data:', error);
+      console.error('Error loading user data:', error);
+    } finally {
+      setLoading(false);
     }
-    
-    // Load favorites lists
-    await loadFavoriteLists();
-    
-  } catch (error) {
-    console.error('Error loading user data:', error);
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   const loadSubscription = async () => {
     try {
@@ -196,8 +190,6 @@ const loadUserData = async () => {
       
       if (response.ok) {
         const data = await response.json();
-        console.log('Subscription data from API:', data);
-        
         setSubscription({
           status: data.status || 'active',
           plan: data.subscriptionType || 'individual',
@@ -212,31 +204,103 @@ const loadUserData = async () => {
       console.error('Error loading subscription:', error);
     }
   };
-// Add this function after loadSubscription (around line 119)
-  const testGroupAPI = async () => {
+
+  // -------- Group Members: functions moved to component scope --------
+  const loadGroupData = async () => {
+    setGroupLoading(true);
     try {
-      const idToken = await getIdToken();
-      if (!idToken) {
-        alert('No token found - please log in');
-        return;
-      }
-      
-      const response = await fetch('https://api.coolenglishmusic.com/groups', {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${idToken}`,
-          'Content-Type': 'application/json'
-        }
+      const token = await getIdToken();
+      if (!token) return;
+
+      const response = await fetch(`${API_BASE}/groups`, {
+        headers: { 'Authorization': `Bearer ${token}` }
       });
-      
-      const data = await response.json();
-      console.log('Group API Response:', data);
-      alert('Group API Response: ' + JSON.stringify(data));
-    } catch (error: any) {
-      console.error('Error:', error);
-      alert('Error: ' + (error?.message || 'Unknown error'));
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.group && data.group.isOwner) {
+          setGroupData(data.group);
+          setMembers(data.group.members || []);
+        } else {
+          setGroupData(null);
+          setMembers([]);
+        }
+      } else {
+        throw new Error(`Groups API error: ${response.status}`);
+      }
+    } catch (error) {
+      console.error('Error loading group:', error);
+      setMessage({ type: 'error', text: 'Failed to load group data' });
+    } finally {
+      setGroupLoading(false);
     }
   };
+
+  const addMember = async () => {
+    if (!newMemberEmail || !newMemberEmail.includes('@')) {
+      setMessage({ type: 'error', text: 'Please enter a valid email address' });
+      return;
+    }
+
+    setAddingMember(true);
+    try {
+      const token = await getIdToken();
+      const response = await fetch(`${API_BASE}/groups/members`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          memberEmail: newMemberEmail,
+          memberName: newMemberName || newMemberEmail
+        })
+      });
+
+      const data = await response.json();
+      
+      if (response.ok) {
+        setMessage({ type: 'success', text: 'Invitation sent successfully!' });
+        setNewMemberEmail('');
+        setNewMemberName('');
+        await loadGroupData();
+      } else {
+        setMessage({ type: 'error', text: data.error || 'Failed to add member' });
+      }
+    } catch (error) {
+      console.error('Error adding member:', error);
+      setMessage({ type: 'error', text: 'Failed to add member' });
+    } finally {
+      setAddingMember(false);
+    }
+  };
+
+  const removeMember = async (memberEmail: string) => {
+    if (!confirm(`Remove ${memberEmail} from the group?`)) return;
+
+    setRemovingMember(memberEmail);
+    try {
+      const token = await getIdToken();
+      const response = await fetch(`${API_BASE}/groups/members/${encodeURIComponent(memberEmail)}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (response.ok) {
+        setMessage({ type: 'success', text: 'Member removed successfully' });
+        await loadGroupData();
+      } else {
+        setMessage({ type: 'error', text: 'Failed to remove member' });
+      }
+    } catch (error) {
+      console.error('Error removing member:', error);
+      setMessage({ type: 'error', text: 'Failed to remove member' });
+    } finally {
+      setRemovingMember(null);
+    }
+  };
+  // ------------------------------------------------------------------
+
   // Load favorite lists from API
   const loadFavoriteLists = async () => {
     setLoadingLists(true);
@@ -261,9 +325,6 @@ const loadUserData = async () => {
     }
   };
 
-
-
-  // Update list name
   const updateListName = async (listId: string) => {
     if (!editingListName.trim()) return;
     
@@ -277,9 +338,7 @@ const loadUserData = async () => {
           'Authorization': `Bearer ${idToken}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-          name: editingListName.trim()
-        })
+        body: JSON.stringify({ name: editingListName.trim() })
       });
       
       if (response.ok) {
@@ -294,7 +353,6 @@ const loadUserData = async () => {
     }
   };
 
-  // Delete a list
   const deleteList = async (listId: string) => {
     if (!confirm('Are you sure you want to delete this list and all its activities?')) return;
     
@@ -304,9 +362,7 @@ const loadUserData = async () => {
       
       const response = await fetch(`${API_BASE}/favorite-lists/${listId}`, {
         method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${idToken}`
-        }
+        headers: { 'Authorization': `Bearer ${idToken}` }
       });
       
       if (response.ok) {
@@ -319,7 +375,6 @@ const loadUserData = async () => {
     }
   };
 
-  // Remove activity from list
   const removeActivityFromList = async (listId: string, activityId: string) => {
     try {
       const idToken = await getIdToken();
@@ -327,9 +382,7 @@ const loadUserData = async () => {
       
       const response = await fetch(`${API_BASE}/favorite-lists/${listId}/activities/${activityId}`, {
         method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${idToken}`
-        }
+        headers: { 'Authorization': `Bearer ${idToken}` }
       });
       
       if (response.ok) {
@@ -342,15 +395,11 @@ const loadUserData = async () => {
     }
   };
 
-  // Toggle list expansion
   const toggleListExpansion = (listId: string) => {
     setExpandedLists(prev => {
       const newSet = new Set(prev);
-      if (newSet.has(listId)) {
-        newSet.delete(listId);
-      } else {
-        newSet.add(listId);
-      }
+      if (newSet.has(listId)) newSet.delete(listId);
+      else newSet.add(listId);
       return newSet;
     });
   };
@@ -363,33 +412,23 @@ const loadUserData = async () => {
       try {
         const session = await fetchAuthSession();
         const idToken = session?.tokens?.idToken?.toString();
-        if (idToken) {
-          headers['Authorization'] = `Bearer ${idToken}`;
-        }
-      } catch (e) {
-        console.log("No auth session");
+        if (idToken) headers['Authorization'] = `Bearer ${idToken}`;
+      } catch {
         router.push('/login');
         return;
       }
       
-      const response = await fetch(`/api/grant-access?prefix=${encodeURIComponent(s3Prefix)}`, {
-        headers
-      });
-      
+      const response = await fetch(`/api/grant-access?prefix=${encodeURIComponent(s3Prefix)}`, { headers });
       if (!response.ok) {
-        console.error("Grant access failed");
         router.push('/pricing');
         return;
       }
       
       const data = await response.json();
-      
       if (data.success && data.activityUrl) {
         window.open(data.activityUrl, '_blank');
       } else if (data.error === 'authentication_required') {
         router.push('/login');
-      } else if (data.error === 'subscription_required') {
-        router.push('/pricing');
       } else {
         router.push('/pricing');
       }
@@ -401,18 +440,12 @@ const loadUserData = async () => {
 
   const handleEmailUpdate = async () => {
     if (newEmail === email) return;
-    
     setSaving(true);
     setMessage({ type: '', text: '' });
-    
     try {
       await updateUserAttribute({
-        userAttribute: {
-          attributeKey: 'email',
-          value: newEmail
-        }
+        userAttribute: { attributeKey: 'email', value: newEmail }
       });
-      
       setMessage({ type: 'success', text: 'Email updated successfully! Please verify your new email.' });
       setEmail(newEmail);
       setNewEmail('');
@@ -428,17 +461,11 @@ const loadUserData = async () => {
       setMessage({ type: 'error', text: 'Passwords do not match' });
       return;
     }
-    
     setSaving(true);
     setMessage({ type: '', text: '' });
-    
     try {
       const { updatePassword } = await import('aws-amplify/auth');
-      await updatePassword({
-        oldPassword: currentPassword,
-        newPassword: newPassword
-      });
-      
+      await updatePassword({ oldPassword: currentPassword, newPassword });
       setMessage({ type: 'success', text: 'Password updated successfully!' });
       setCurrentPassword('');
       setNewPassword('');
@@ -454,24 +481,17 @@ const loadUserData = async () => {
     setIsLoadingPortal(true);
     try {
       const idToken = await getIdToken();
-      
       if (!idToken) {
         setMessage({ type: 'error', text: 'Please log in again' });
         setIsLoadingPortal(false);
         return;
       }
-      
       const response = await fetch(`${API_BASE}/create-portal-session`, {
         method: 'POST',
-        headers: {
-          'Authorization': idToken,
-          'Content-Type': 'application/json'
-        },
+        headers: { 'Authorization': idToken, 'Content-Type': 'application/json' },
         body: JSON.stringify({})
       });
-      
       const data = await response.json();
-      
       if (response.ok && data.url) {
         window.location.href = data.url;
       } else {
@@ -485,50 +505,26 @@ const loadUserData = async () => {
     }
   };
 
-  const formatDate = (timestamp: number) => {
-    return new Date(timestamp).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
-  };
+  const formatDate = (timestamp: number) =>
+    new Date(timestamp).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
 
-  const formatPrice = (amount: number) => {
-    return `$${(amount / 100).toFixed(2)}`;
-  };
+  const formatPrice = (amount: number) => `$${(amount / 100).toFixed(2)}`;
   
   const getPlanDisplayName = () => {
     if (!subscription) return '';
-    
-    if (subscription.interval === 'year') {
-      return 'Annual Subscription';
-    } else if (subscription.interval === 'month') {
-      return 'Monthly Subscription';
-    }
-    
+    if (subscription.interval === 'year') return 'Annual Subscription';
+    if (subscription.interval === 'month') return 'Monthly Subscription';
     if (subscription.amount === 1500) return 'Annual Subscription';
     if (subscription.amount === 200) return 'Monthly Subscription';
-    
     return 'Subscription';
   };
   
   const getPlanPriceDisplay = () => {
     if (!subscription) return '';
-    
     const price = formatPrice(subscription.amount);
-    
-    if (subscription.interval === 'year') {
-      return `${price} / year`;
-    } else if (subscription.interval === 'month') {
-      return `${price} / month`;
-    }
-    
+    if (subscription.interval === 'year') return `${price} / year`;
+    if (subscription.interval === 'month') return `${price} / month`;
     return subscription.amount === 1500 ? `${price} / year` : `${price} / month`;
-  };
-
-  // Placeholder function for group members
-  const addGroupMember = () => {
-    setMessage({ type: 'info', text: 'Group membership feature coming soon!' });
   };
 
   if (loading) {
@@ -553,8 +549,7 @@ const loadUserData = async () => {
           <div className={`mb-6 p-4 rounded-lg flex items-center gap-3 ${
             message.type === 'success' ? 'bg-green-500/20 border border-green-500/50 text-green-400' :
             message.type === 'error' ? 'bg-red-500/20 border border-red-500/50 text-red-400' :
-            message.type === 'info' ? 'bg-blue-500/20 border border-blue-500/50 text-blue-400' :
-            ''
+            message.type === 'info' ? 'bg-blue-500/20 border border-blue-500/50 text-blue-400' : ''
           }`}>
             {message.type === 'success' && <Check className="w-5 h-5" />}
             {message.type === 'error' && <X className="w-5 h-5" />}
@@ -608,7 +603,7 @@ const loadUserData = async () => {
                     </span>
                   )}
                 </button>
-                
+
                 {subscription?.plan === 'team' && (
                   <button
                     onClick={() => setActiveTab('members')}
@@ -655,11 +650,7 @@ const loadUserData = async () => {
                         disabled={!newEmail || newEmail === email || saving}
                         className="px-4 py-2 bg-green-500 hover:bg-green-600 disabled:bg-gray-700 text-white rounded-lg transition-all flex items-center gap-2"
                       >
-                        {saving ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <Check className="w-4 h-4" />
-                        )}
+                        {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
                       </button>
                     </div>
                     {email && newEmail && newEmail !== email && (
@@ -742,9 +733,7 @@ const loadUserData = async () => {
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                           <div>
                             <p className="text-sm text-gray-400 mb-1">Plan Type</p>
-                            <p className="text-white font-medium">
-                              {getPlanDisplayName()}
-                            </p>
+                            <p className="text-white font-medium">{getPlanDisplayName()}</p>
                           </div>
                           <div>
                             <p className="text-sm text-gray-400 mb-1">Price</p>
@@ -775,17 +764,6 @@ const loadUserData = async () => {
                         </div>
                       </div>
 
-                      {/* ADD TEST BUTTON HERE */}
-                      <div className="mt-4">
-                        <button 
-                          onClick={testGroupAPI}
-                          className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded"
-                        >
-                          Test Group API
-                        </button>
-                      </div>
-
-                      {/* Billing Management */}
                       {/* Billing Management */}
                       <div className="border-t border-gray-700 pt-6">
                         <h3 className="text-lg font-medium text-white mb-4">Billing Management</h3>
@@ -806,7 +784,7 @@ const loadUserData = async () => {
                 </div>
               )}
 
-              {/* Favorites Tab - NOW WITH REAL IMPLEMENTATION */}
+              {/* Favorites Tab */}
               {activeTab === 'favorites' && (
                 <div className="space-y-6">
                   <div className="flex items-center justify-between">
@@ -814,13 +792,8 @@ const loadUserData = async () => {
                       <Heart className="w-5 h-5 text-green-400" />
                       My Favorite Lists
                     </h2>
-
                   </div>
 
-            
-                  
-
-                  {/* Lists */}
                   {loadingLists ? (
                     <div className="text-center py-12">
                       <Loader2 className="w-8 h-8 text-green-500 animate-spin mx-auto" />
@@ -844,9 +817,7 @@ const loadUserData = async () => {
                                 className="text-gray-400 hover:text-white transition-colors"
                               >
                                 <ChevronDown 
-                                  className={`w-5 h-5 transition-transform ${
-                                    expandedLists.has(list.listId) ? 'rotate-180' : ''
-                                  }`} 
+                                  className={`w-5 h-5 transition-transform ${expandedLists.has(list.listId) ? 'rotate-180' : ''}`} 
                                 />
                               </button>
                               
@@ -943,7 +914,7 @@ const loadUserData = async () => {
                 </div>
               )}
 
-              {/* Group Members Tab - WORKING VERSION */}
+              {/* Group Members Tab - FIXED (no hooks inside JSX) */}
               {activeTab === 'members' && subscription?.plan === 'team' && (
                 <div className="space-y-6">
                   <h2 className="text-xl font-semibold text-white flex items-center gap-2">
@@ -951,280 +922,172 @@ const loadUserData = async () => {
                     Group Members
                   </h2>
 
-                  {(() => {
-                    // Group Members component logic inline
-                    const [groupData, setGroupData] = useState<any>(null);
-                    const [members, setMembers] = useState<any[]>([]);
-                    const [groupLoading, setGroupLoading] = useState(true);
-                    const [addingMember, setAddingMember] = useState(false);
-                    const [newMemberName, setNewMemberName] = useState('');
-                    const [removingMember, setRemovingMember] = useState<string | null>(null);
+                  {/* Load/refresh group data when entering Members tab */}
+                  <LoadGroupOnTab
+                    activeTab={activeTab}
+                    onLoad={loadGroupData}
+                    loading={groupLoading}
+                  />
 
-                    useEffect(() => {
-                      loadGroupData();
-                    }, []);
-
-                    const loadGroupData = async () => {
-                      setGroupLoading(true);
-                      try {
-                        const token = await getIdToken();
-                        if (!token) return;
-
-                        const response = await fetch(`${API_BASE}/groups`, {
-                          headers: {
-                            'Authorization': `Bearer ${token}`
-                          }
-                        });
-
-                        if (response.ok) {
-                          const data = await response.json();
-                          if (data.group && data.group.isOwner) {
-                            setGroupData(data.group);
-                            setMembers(data.group.members || []);
-                          }
-                        }
-                      } catch (error) {
-                        console.error('Error loading group:', error);
-                        setMessage({ type: 'error', text: 'Failed to load group data' });
-                      } finally {
-                        setGroupLoading(false);
-                      }
-                    };
-
-                    const addMember = async () => {
-                      if (!newMemberEmail || !newMemberEmail.includes('@')) {
-                        setMessage({ type: 'error', text: 'Please enter a valid email address' });
-                        return;
-                      }
-
-                      setAddingMember(true);
-                      try {
-                        const token = await getIdToken();
-                        const response = await fetch(`${API_BASE}/groups/members`, {
-                          method: 'POST',
-                          headers: {
-                            'Authorization': `Bearer ${token}`,
-                            'Content-Type': 'application/json'
-                          },
-                          body: JSON.stringify({
-                            memberEmail: newMemberEmail,
-                            memberName: newMemberName || newMemberEmail
-                          })
-                        });
-
-                        const data = await response.json();
-                        
-                        if (response.ok) {
-                          setMessage({ type: 'success', text: 'Invitation sent successfully!' });
-                          setNewMemberEmail('');
-                          setNewMemberName('');
-                          await loadGroupData();
-                        } else {
-                          setMessage({ type: 'error', text: data.error || 'Failed to add member' });
-                        }
-                      } catch (error) {
-                        console.error('Error adding member:', error);
-                        setMessage({ type: 'error', text: 'Failed to add member' });
-                      } finally {
-                        setAddingMember(false);
-                      }
-                    };
-
-                    const removeMember = async (memberEmail: string) => {
-                      if (!confirm(`Remove ${memberEmail} from the group?`)) return;
-
-                      setRemovingMember(memberEmail);
-                      try {
-                        const token = await getIdToken();
-                        const response = await fetch(`${API_BASE}/groups/members/${encodeURIComponent(memberEmail)}`, {
-                          method: 'DELETE',
-                          headers: {
-                            'Authorization': `Bearer ${token}`
-                          }
-                        });
-
-                        if (response.ok) {
-                          setMessage({ type: 'success', text: 'Member removed successfully' });
-                          await loadGroupData();
-                        } else {
-                          setMessage({ type: 'error', text: 'Failed to remove member' });
-                        }
-                      } catch (error) {
-                        console.error('Error removing member:', error);
-                        setMessage({ type: 'error', text: 'Failed to remove member' });
-                      } finally {
-                        setRemovingMember(null);
-                      }
-                    };
-
-                    if (groupLoading) {
-                      return (
-                        <div className="text-center py-12">
-                          <Loader2 className="w-8 h-8 text-green-500 animate-spin mx-auto" />
-                          <p className="text-gray-400 mt-2">Loading group data...</p>
-                        </div>
-                      );
-                    }
-
-                    if (!groupData) {
-                      return (
-                        <div className="text-center py-12 text-gray-400">
-                          <p>Unable to load group information</p>
-                        </div>
-                      );
-                    }
-
-                    return (
-                      <>
-                        {/* Group Info */}
-                        <div className="bg-gray-700 rounded-lg p-4">
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                            <div>
-                              <p className="text-sm text-gray-400">Group Name</p>
-                              <p className="font-semibold text-white">{groupData.groupName}</p>
-                            </div>
-                            <div>
-                              <p className="text-sm text-gray-400">Total Seats</p>
-                              <p className="font-semibold text-white">{groupData.seatCount}</p>
-                            </div>
-                            <div>
-                              <p className="text-sm text-gray-400">Used Seats</p>
-                              <p className="font-semibold text-white">{members.length + 1}</p>
-                            </div>
-                            <div>
-                              <p className="text-sm text-gray-400">Available Seats</p>
-                              <p className="font-semibold text-green-400">
-                                {Math.max(0, groupData.seatCount - members.length - 1)}
-                              </p>
-                            </div>
+                  {groupLoading ? (
+                    <div className="text-center py-12">
+                      <Loader2 className="w-8 h-8 text-green-500 animate-spin mx-auto" />
+                      <p className="text-gray-400 mt-2">Loading group data...</p>
+                    </div>
+                  ) : !groupData ? (
+                    <div className="text-center py-12 text-gray-400">
+                      <p>Unable to load group information</p>
+                    </div>
+                  ) : (
+                    <>
+                      {/* Group Info */}
+                      <div className="bg-gray-700 rounded-lg p-4">
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                          <div>
+                            <p className="text-sm text-gray-400">Group Name</p>
+                            <p className="font-semibold text-white">{groupData.groupName}</p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-gray-400">Total Seats</p>
+                            <p className="font-semibold text-white">{groupData.seatCount}</p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-gray-400">Used Seats</p>
+                            <p className="font-semibold text-white">{(members?.length || 0) + 1}</p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-gray-400">Available Seats</p>
+                            <p className="font-semibold text-green-400">
+                              {Math.max(0, (groupData.seatCount || 0) - (members?.length || 0) - 1)}
+                            </p>
                           </div>
                         </div>
+                      </div>
 
-                        {/* Add Member Form */}
-                        <div className="bg-gray-700 rounded-lg p-4">
-                          <h3 className="text-lg font-medium text-white mb-4">Add Team Member</h3>
-                          <div className="space-y-4">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                              <div>
-                                <label className="block text-sm text-gray-400 mb-2">Email Address *</label>
-                                <input
-                                  type="email"
-                                  value={newMemberEmail}
-                                  onChange={(e) => setNewMemberEmail(e.target.value)}
-                                  placeholder="member@example.com"
-                                  className="w-full px-4 py-2 bg-gray-600 border border-gray-500 rounded-lg text-white focus:outline-none focus:border-green-500"
-                                />
-                              </div>
-                              <div>
-                                <label className="block text-sm text-gray-400 mb-2">Name (Optional)</label>
-                                <input
-                                  type="text"
-                                  value={newMemberName}
-                                  onChange={(e) => setNewMemberName(e.target.value)}
-                                  placeholder="Team member's name"
-                                  className="w-full px-4 py-2 bg-gray-600 border border-gray-500 rounded-lg text-white focus:outline-none focus:border-green-500"
-                                />
-                              </div>
+                      {/* Add Member Form */}
+                      <div className="bg-gray-700 rounded-lg p-4">
+                        <h3 className="text-lg font-medium text-white mb-4">Add Team Member</h3>
+                        <div className="space-y-4">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-sm text-gray-400 mb-2">Email Address *</label>
+                              <input
+                                type="email"
+                                value={newMemberEmail}
+                                onChange={(e) => setNewMemberEmail(e.target.value)}
+                                placeholder="member@example.com"
+                                className="w-full px-4 py-2 bg-gray-600 border border-gray-500 rounded-lg text-white focus:outline-none focus:border-green-500"
+                              />
                             </div>
-                            <button
-                              onClick={addMember}
-                              disabled={addingMember || !newMemberEmail || members.length + 1 >= groupData.seatCount}
-                              className="px-6 py-2 bg-green-500 hover:bg-green-600 disabled:bg-gray-600 text-white rounded-lg transition-all flex items-center gap-2"
-                            >
-                              {addingMember ? (
-                                <>
-                                  <Loader2 className="w-4 h-4 animate-spin" />
-                                  Sending Invitation...
-                                </>
-                              ) : (
-                                <>
-                                  <UserPlus className="w-4 h-4" />
-                                  Send Invitation
-                                </>
-                              )}
-                            </button>
-                            {members.length + 1 >= groupData.seatCount && (
-                              <p className="text-yellow-400 text-sm">
-                                All seats are in use. Remove a member or upgrade your plan to add more.
-                              </p>
+                            <div>
+                              <label className="block text-sm text-gray-400 mb-2">Name (Optional)</label>
+                              <input
+                                type="text"
+                                value={newMemberName}
+                                onChange={(e) => setNewMemberName(e.target.value)}
+                                placeholder="Team member's name"
+                                className="w-full px-4 py-2 bg-gray-600 border border-gray-500 rounded-lg text-white focus:outline-none focus:border-green-500"
+                              />
+                            </div>
+                          </div>
+                          <button
+                            onClick={addMember}
+                            disabled={addingMember || !newMemberEmail || ((members?.length || 0) + 1) >= (groupData.seatCount || 0)}
+                            className="px-6 py-2 bg-green-500 hover:bg-green-600 disabled:bg-gray-600 text-white rounded-lg transition-all flex items-center gap-2"
+                          >
+                            {addingMember ? (
+                              <>
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                                Sending Invitation...
+                              </>
+                            ) : (
+                              <>
+                                <UserPlus className="w-4 h-4" />
+                                Send Invitation
+                              </>
                             )}
-                          </div>
-                        </div>
-
-                        {/* Members List */}
-                        <div className="bg-gray-700 rounded-lg overflow-hidden">
-                          <div className="p-4 border-b border-gray-600">
-                            <h3 className="text-lg font-medium text-white">Team Members</h3>
-                          </div>
-                          
-                          {/* Owner (You) */}
-                          <div className="p-4 flex items-center justify-between border-b border-gray-600">
-                            <div className="flex items-center gap-3">
-                              <div className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center">
-                                <Users className="w-5 h-5 text-white" />
-                              </div>
-                              <div>
-                                <p className="font-medium text-white">{groupData.ownerEmail}</p>
-                                <p className="text-sm text-gray-400">Owner (You)</p>
-                              </div>
-                            </div>
-                            <span className="px-3 py-1 bg-green-500/20 text-green-400 text-sm rounded-full">
-                              Owner
-                            </span>
-                          </div>
-
-                          {/* Team Members */}
-                          {members.length === 0 ? (
-                            <div className="p-8 text-center text-gray-400">
-                              <Mail className="w-12 h-12 mx-auto mb-3 text-gray-600" />
-                              <p>No team members yet</p>
-                              <p className="text-sm mt-1">Send invitations to add team members</p>
-                            </div>
-                          ) : (
-                            members.map((member: any) => (
-                              <div key={member.memberEmail} className="p-4 flex items-center justify-between border-b border-gray-600 last:border-0">
-                                <div className="flex items-center gap-3">
-                                  <div className="w-10 h-10 bg-gray-600 rounded-full flex items-center justify-center">
-                                    <Users className="w-5 h-5 text-gray-400" />
-                                  </div>
-                                  <div>
-                                    <p className="font-medium text-white">{member.memberName || member.memberEmail}</p>
-                                    <p className="text-sm text-gray-400">{member.memberEmail}</p>
-                                  </div>
-                                </div>
-                                
-                                <div className="flex items-center gap-2">
-                                  {member.status === 'invited' ? (
-                                    <span className="px-3 py-1 bg-yellow-500/20 text-yellow-400 text-sm rounded-full flex items-center gap-1">
-                                      <Clock className="w-3 h-3" />
-                                      Pending
-                                    </span>
-                                  ) : (
-                                    <span className="px-3 py-1 bg-green-500/20 text-green-400 text-sm rounded-full flex items-center gap-1">
-                                      <Check className="w-3 h-3" />
-                                      Active
-                                    </span>
-                                  )}
-                                  
-                                  <button
-                                    onClick={() => removeMember(member.memberEmail)}
-                                    disabled={removingMember === member.memberEmail}
-                                    className="p-1.5 text-gray-400 hover:text-red-400 transition-colors"
-                                  >
-                                    {removingMember === member.memberEmail ? (
-                                      <Loader2 className="w-4 h-4 animate-spin" />
-                                    ) : (
-                                      <X className="w-4 h-4" />
-                                    )}
-                                  </button>
-                                </div>
-                              </div>
-                            ))
+                          </button>
+                          {((members?.length || 0) + 1) >= (groupData.seatCount || 0) && (
+                            <p className="text-yellow-400 text-sm">
+                              All seats are in use. Remove a member or upgrade your plan to add more.
+                            </p>
                           )}
                         </div>
-                      </>
-                    );
-                  })()}
+                      </div>
+
+                      {/* Members List */}
+                      <div className="bg-gray-700 rounded-lg overflow-hidden">
+                        <div className="p-4 border-b border-gray-600">
+                          <h3 className="text-lg font-medium text-white">Team Members</h3>
+                        </div>
+                        
+                        {/* Owner (You) */}
+                        <div className="p-4 flex items-center justify-between border-b border-gray-600">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center">
+                              <Users className="w-5 h-5 text-white" />
+                            </div>
+                            <div>
+                              <p className="font-medium text-white">{groupData.ownerEmail}</p>
+                              <p className="text-sm text-gray-400">Owner (You)</p>
+                            </div>
+                          </div>
+                          <span className="px-3 py-1 bg-green-500/20 text-green-400 text-sm rounded-full">
+                            Owner
+                          </span>
+                        </div>
+
+                        {/* Team Members */}
+                        {(members?.length || 0) === 0 ? (
+                          <div className="p-8 text-center text-gray-400">
+                            <Mail className="w-12 h-12 mx-auto mb-3 text-gray-600" />
+                            <p>No team members yet</p>
+                            <p className="text-sm mt-1">Send invitations to add team members</p>
+                          </div>
+                        ) : (
+                          members.map((member) => (
+                            <div key={member.memberEmail} className="p-4 flex items-center justify-between border-b border-gray-600 last:border-0">
+                              <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 bg-gray-600 rounded-full flex items-center justify-center">
+                                  <Users className="w-5 h-5 text-gray-400" />
+                                </div>
+                                <div>
+                                  <p className="font-medium text-white">{member.memberName || member.memberEmail}</p>
+                                  <p className="text-sm text-gray-400">{member.memberEmail}</p>
+                                </div>
+                              </div>
+                              
+                              <div className="flex items-center gap-2">
+                                {member.status === 'invited' ? (
+                                  <span className="px-3 py-1 bg-yellow-500/20 text-yellow-400 text-sm rounded-full flex items-center gap-1">
+                                    <Clock className="w-3 h-3" />
+                                    Pending
+                                  </span>
+                                ) : (
+                                  <span className="px-3 py-1 bg-green-500/20 text-green-400 text-sm rounded-full flex items-center gap-1">
+                                    <Check className="w-3 h-3" />
+                                    Active
+                                  </span>
+                                )}
+                                
+                                <button
+                                  onClick={() => removeMember(member.memberEmail)}
+                                  disabled={removingMember === member.memberEmail}
+                                  className="p-1.5 text-gray-400 hover:text-red-400 transition-colors"
+                                >
+                                  {removingMember === member.memberEmail ? (
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                  ) : (
+                                    <X className="w-4 h-4" />
+                                  )}
+                                </button>
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </>
+                  )}
                 </div>
               )}
             </div>
@@ -1234,4 +1097,25 @@ const loadUserData = async () => {
     </div>
   );
 }
-             
+
+/**
+ * Small helper component: when the tab switches to "members", it triggers a group load.
+ * No hooks are declared conditionally here; this component itself uses an effect safely.
+ */
+function LoadGroupOnTab({
+  activeTab,
+  onLoad,
+  loading
+}: {
+  activeTab: string;
+  onLoad: () => Promise<void> | void;
+  loading: boolean;
+}) {
+  useEffect(() => {
+    if (activeTab === 'members' && !loading) {
+      onLoad();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
+  return null;
+}
