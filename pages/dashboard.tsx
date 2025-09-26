@@ -942,35 +942,299 @@ const loadUserData = async () => {
                 </div>
               )}
 
-              {/* Group Members Tab (Placeholder) */}
-              {activeTab === 'members' && subscription?.plan === 'team' && (
-                <div className="space-y-6">
-                  <h2 className="text-xl font-semibold text-white flex items-center gap-2">
-                    <Users className="w-5 h-5 text-green-400" />
-                    Group Members
-                  </h2>
+import React, { useState, useEffect } from 'react';
+import { Users, UserPlus, X, Loader2, Check, Mail, Clock } from 'lucide-react';
 
-                  <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4">
-                    <p className="text-yellow-400 text-sm">
-                      Group management features are coming soon!
-                    </p>
-                  </div>
+// This component replaces the placeholder in your dashboard.tsx
+// Copy this into the Group Members Tab section (around line 850)
 
-                  <div className="text-center py-12 text-gray-400">
-                    <Users className="w-16 h-16 mx-auto mb-4 text-gray-600" />
-                    <p className="mb-4">No group members yet</p>
-                    <button
-                      onClick={addGroupMember}
-                      className="px-6 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-all"
-                    >
-                      Feature Coming Soon
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
+export default function GroupMembersTab({ API_BASE, getIdToken, setMessage }) {
+  const [groupData, setGroupData] = useState(null);
+  const [members, setMembers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [addingMember, setAddingMember] = useState(false);
+  const [newMemberEmail, setNewMemberEmail] = useState('');
+  const [newMemberName, setNewMemberName] = useState('');
+  const [removingMember, setRemovingMember] = useState(null);
+
+  useEffect(() => {
+    loadGroupData();
+  }, []);
+
+  const loadGroupData = async () => {
+    setLoading(true);
+    try {
+      const token = await getIdToken();
+      if (!token) return;
+
+      const response = await fetch(`${API_BASE}/groups`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.group && data.group.isOwner) {
+          setGroupData(data.group);
+          setMembers(data.group.members || []);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading group:', error);
+      setMessage({ type: 'error', text: 'Failed to load group data' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const addMember = async () => {
+    if (!newMemberEmail || !newMemberEmail.includes('@')) {
+      setMessage({ type: 'error', text: 'Please enter a valid email address' });
+      return;
+    }
+
+    setAddingMember(true);
+    try {
+      const token = await getIdToken();
+      const response = await fetch(`${API_BASE}/groups/members`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          memberEmail: newMemberEmail,
+          memberName: newMemberName || newMemberEmail
+        })
+      });
+
+      const data = await response.json();
+      
+      if (response.ok) {
+        setMessage({ type: 'success', text: 'Invitation sent successfully!' });
+        setNewMemberEmail('');
+        setNewMemberName('');
+        await loadGroupData();
+      } else {
+        setMessage({ type: 'error', text: data.error || 'Failed to add member' });
+      }
+    } catch (error) {
+      console.error('Error adding member:', error);
+      setMessage({ type: 'error', text: 'Failed to add member' });
+    } finally {
+      setAddingMember(false);
+    }
+  };
+
+  const removeMember = async (memberEmail) => {
+    if (!confirm(`Remove ${memberEmail} from the group?`)) return;
+
+    setRemovingMember(memberEmail);
+    try {
+      const token = await getIdToken();
+      const response = await fetch(`${API_BASE}/groups/members/${encodeURIComponent(memberEmail)}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        setMessage({ type: 'success', text: 'Member removed successfully' });
+        await loadGroupData();
+      } else {
+        setMessage({ type: 'error', text: 'Failed to remove member' });
+      }
+    } catch (error) {
+      console.error('Error removing member:', error);
+      setMessage({ type: 'error', text: 'Failed to remove member' });
+    } finally {
+      setRemovingMember(null);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <h2 className="text-xl font-semibold text-white flex items-center gap-2">
+          <Users className="w-5 h-5 text-green-400" />
+          Group Members
+        </h2>
+        <div className="text-center py-12">
+          <Loader2 className="w-8 h-8 text-green-500 animate-spin mx-auto" />
+          <p className="text-gray-400 mt-2">Loading group data...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!groupData) {
+    return (
+      <div className="space-y-6">
+        <h2 className="text-xl font-semibold text-white flex items-center gap-2">
+          <Users className="w-5 h-5 text-green-400" />
+          Group Members
+        </h2>
+        <div className="text-center py-12 text-gray-400">
+          <p>Unable to load group information</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <h2 className="text-xl font-semibold text-white flex items-center gap-2">
+        <Users className="w-5 h-5 text-green-400" />
+        Group Members
+      </h2>
+
+      {/* Group Info */}
+      <div className="bg-gray-700 rounded-lg p-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div>
+            <p className="text-sm text-gray-400">Group Name</p>
+            <p className="font-semibold text-white">{groupData.groupName}</p>
+          </div>
+          <div>
+            <p className="text-sm text-gray-400">Total Seats</p>
+            <p className="font-semibold text-white">{groupData.seatCount}</p>
+          </div>
+          <div>
+            <p className="text-sm text-gray-400">Used Seats</p>
+            <p className="font-semibold text-white">{members.length + 1}</p>
+          </div>
+          <div>
+            <p className="text-sm text-gray-400">Available Seats</p>
+            <p className="font-semibold text-green-400">
+              {Math.max(0, groupData.seatCount - members.length - 1)}
+            </p>
           </div>
         </div>
+      </div>
+
+      {/* Add Member Form */}
+      <div className="bg-gray-700 rounded-lg p-4">
+        <h3 className="text-lg font-medium text-white mb-4">Add Team Member</h3>
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm text-gray-400 mb-2">Email Address *</label>
+              <input
+                type="email"
+                value={newMemberEmail}
+                onChange={(e) => setNewMemberEmail(e.target.value)}
+                placeholder="member@example.com"
+                className="w-full px-4 py-2 bg-gray-600 border border-gray-500 rounded-lg text-white focus:outline-none focus:border-green-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-gray-400 mb-2">Name (Optional)</label>
+              <input
+                type="text"
+                value={newMemberName}
+                onChange={(e) => setNewMemberName(e.target.value)}
+                placeholder="Team member's name"
+                className="w-full px-4 py-2 bg-gray-600 border border-gray-500 rounded-lg text-white focus:outline-none focus:border-green-500"
+              />
+            </div>
+          </div>
+          <button
+            onClick={addMember}
+            disabled={addingMember || !newMemberEmail || members.length + 1 >= groupData.seatCount}
+            className="px-6 py-2 bg-green-500 hover:bg-green-600 disabled:bg-gray-600 text-white rounded-lg transition-all flex items-center gap-2"
+          >
+            {addingMember ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Sending Invitation...
+              </>
+            ) : (
+              <>
+                <UserPlus className="w-4 h-4" />
+                Send Invitation
+              </>
+            )}
+          </button>
+          {members.length + 1 >= groupData.seatCount && (
+            <p className="text-yellow-400 text-sm">
+              All seats are in use. Remove a member or upgrade your plan to add more.
+            </p>
+          )}
+        </div>
+      </div>
+
+      {/* Members List */}
+      <div className="bg-gray-700 rounded-lg overflow-hidden">
+        <div className="p-4 border-b border-gray-600">
+          <h3 className="text-lg font-medium text-white">Team Members</h3>
+        </div>
+        
+        {/* Owner (You) */}
+        <div className="p-4 flex items-center justify-between border-b border-gray-600">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center">
+              <Users className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <p className="font-medium text-white">{groupData.ownerEmail}</p>
+              <p className="text-sm text-gray-400">Owner (You)</p>
+            </div>
+          </div>
+          <span className="px-3 py-1 bg-green-500/20 text-green-400 text-sm rounded-full">
+            Owner
+          </span>
+        </div>
+
+        {/* Team Members */}
+        {members.length === 0 ? (
+          <div className="p-8 text-center text-gray-400">
+            <Mail className="w-12 h-12 mx-auto mb-3 text-gray-600" />
+            <p>No team members yet</p>
+            <p className="text-sm mt-1">Send invitations to add team members</p>
+          </div>
+        ) : (
+          members.map((member) => (
+            <div key={member.memberEmail} className="p-4 flex items-center justify-between border-b border-gray-600 last:border-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-gray-600 rounded-full flex items-center justify-center">
+                  <Users className="w-5 h-5 text-gray-400" />
+                </div>
+                <div>
+                  <p className="font-medium text-white">{member.memberName || member.memberEmail}</p>
+                  <p className="text-sm text-gray-400">{member.memberEmail}</p>
+                </div>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                {member.status === 'invited' ? (
+                  <span className="px-3 py-1 bg-yellow-500/20 text-yellow-400 text-sm rounded-full flex items-center gap-1">
+                    <Clock className="w-3 h-3" />
+                    Pending
+                  </span>
+                ) : (
+                  <span className="px-3 py-1 bg-green-500/20 text-green-400 text-sm rounded-full flex items-center gap-1">
+                    <Check className="w-3 h-3" />
+                    Active
+                  </span>
+                )}
+                
+                <button
+                  onClick={() => removeMember(member.memberEmail)}
+                  disabled={removingMember === member.memberEmail}
+                  className="p-1.5 text-gray-400 hover:text-red-400 transition-colors"
+                >
+                  {removingMember === member.memberEmail ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <X className="w-4 h-4" />
+                  )}
+                </button>
+              </div>
+            </div>
+          ))
+        )}
       </div>
     </div>
   );
