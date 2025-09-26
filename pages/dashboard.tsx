@@ -140,8 +140,7 @@ export default function Dashboard() {
         // Probe groups API to flip plan to 'team' for owners
         try {
           const token = await getIdToken();
-          if (token) {
-            // Only check if subscription indicates team ownership
+         // Only check if subscription indicates team ownership
 if (subscription?.plan === 'team') {
   const teamResponse = await fetch(`${API_BASE}/groups`, {
               headers: { 'Authorization': `Bearer ${token}` }
