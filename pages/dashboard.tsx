@@ -142,14 +142,26 @@ const loadUserData = async () => {
           console.log('Team data loaded:', teamData);
           
           if (teamData.group && teamData.group.isOwner) {
-            // Force subscription to show as team
-            setSubscription(prev => ({
-              ...prev,
-              plan: 'team',  // This enables the Team Members tab
-              subscriptionType: 'team',
-              amount: teamData.group.pricePerSeat || 175,
-              interval: teamData.group.interval || 'month'
-            }));
+            // Force subscription to show as team - TypeScript safe version
+            setSubscription(prev => {
+              if (!prev) {
+                // Create new subscription object if none exists
+                return {
+                  status: 'active',
+                  plan: 'team',
+                  currentPeriodEnd: teamData.group.currentPeriodEnd || Date.now(),
+                  amount: teamData.group.pricePerSeat || 175,
+                  interval: teamData.group.interval || 'month'
+                };
+              }
+              // Update existing subscription
+              return {
+                ...prev,
+                plan: 'team',  // This enables the Team Members tab
+                amount: teamData.group.pricePerSeat || prev.amount,
+                interval: teamData.group.interval || prev.interval
+              };
+            });
           }
         }
       }
