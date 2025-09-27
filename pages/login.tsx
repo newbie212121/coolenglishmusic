@@ -109,7 +109,12 @@ export default function LoginPage() {
               />
             </div>
           </div>
-
+{/* ADD THIS: */}
+<div className="flex items-center justify-between mt-2">
+  <a href="/forgot-password" className="text-sm text-green-500 hover:text-green-400">
+    Forgot password?
+  </a>
+</div>
           {error && (
             <div className="rounded-md bg-red-900/50 border border-red-700 p-4">
               <p className="text-sm text-red-400">{error}</p>

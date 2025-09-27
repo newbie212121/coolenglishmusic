@@ -11,18 +11,19 @@ export default function InvitePage() {
   const [status, setStatus] = useState('checking');
   const { token } = router.query;
 
-  useEffect(() => {
-    if (!token) return;
-    
-    if (!isAuthenticated) {
-      // Save token and redirect to login
-      sessionStorage.setItem('pendingInvite', token as string);
-      router.push('/login?redirect=/invite');
-      return;
-    }
+ // In the useEffect, modify the redirect logic:
+useEffect(() => {
+  if (!token) return;
+  
+  if (!isAuthenticated) {
+    // Save token and redirect to signup instead of login
+    sessionStorage.setItem('pendingInvite', token as string);
+    router.push('/signup?invite=true&redirect=/invite');
+    return;
+  }
 
-    acceptInvite();
-  }, [token, isAuthenticated]);
+  acceptInvite();
+}, [token, isAuthenticated]);
 
   const acceptInvite = async () => {
     try {

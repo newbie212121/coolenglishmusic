@@ -132,7 +132,24 @@ export default function Dashboard() {
       
       // Load subscription data
       await loadSubscription();
-
+ const token = await getIdToken();
+    if (token) {
+      const response = await fetch(`${API_BASE}/members/status`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        if (data.active && data.subscriptionType === 'team_member') {
+          setSubscription({
+            status: 'active',
+            plan: 'team_member',
+            currentPeriodEnd: Date.now() + 30 * 24 * 60 * 60 * 1000,
+            amount: 0,
+            interval: 'month'
+          });
+        }
+      }
+    }
       // If we already know they're a team owner, pre-load group data
       if (subscription?.plan === 'team') {
         await loadGroupData();
